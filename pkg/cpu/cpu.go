@@ -25,6 +25,8 @@ const (
 	OpJne  = -6
 	OpJlt  = 7
 	OpJgt  = -7
+	OpCall = 8
+	OpRet  = -8
 )
 
 type CPU struct {
@@ -217,6 +219,13 @@ func (cpu *CPU) Step() (bool, error) {
 		if cpu.Compare == tryte.T {
 			cpu.PC = cpu.R[srcIdx]
 		}
+
+	case OpCall: // CALL: store return address in R8 and jump to R[src]
+		cpu.R[8] = cpu.PC
+		cpu.PC = cpu.R[srcIdx]
+
+	case OpRet: // RET: return to address in R8
+		cpu.PC = cpu.R[8]
 
 	default:
 		return false, fmt.Errorf("unknown opcode: %d", op)

@@ -174,3 +174,49 @@ func TestCPU_MemoryMappedIO(t *testing.T) {
 		t.Errorf("expected stdout to receive 'B', got %q", outputStr)
 	}
 }
+
+func TestCPU_Subroutines(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Subroutine address is 100
+	cpu.R[0] = tryte.FromInt(100)
+
+	// Address 0: CALL R0 -> should jump to 100, and save PC=1 to R8
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpCall, 0, 0))
+	// Address 1: HALT
+	_ = cpu.WriteMem(tryte.FromInt(1), MakeInst(OpHalt, 0, 0))
+
+	// Address 100: RET -> should jump back to PC=1
+	_ = cpu.WriteMem(tryte.FromInt(100), MakeInst(OpRet, 0, 0))
+
+	// Step 1: execute CALL R0
+	_, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("CALL error: %v", err)
+	}
+	if cpu.PC.ToInt() != 100 {
+		t.Errorf("expected PC to be 100, got %d", cpu.PC.ToInt())
+	}
+	if cpu.R[8].ToInt() != 1 {
+		t.Errorf("expected R8 (LR) to be 1, got %d", cpu.R[8].ToInt())
+	}
+
+	// Step 2: execute RET (should return to PC=1)
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("RET error: %v", err)
+	}
+	if cpu.PC.ToInt() != 1 {
+		t.Errorf("expected PC to return to 1, got %d", cpu.PC.ToInt())
+	}
+
+	// Step 3: execute HALT
+	keepRunning, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("HALT error: %v", err)
+	}
+	if keepRunning {
+		t.Errorf("expected CPU to halt, but it is still running")
+	}
+}

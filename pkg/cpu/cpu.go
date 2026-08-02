@@ -3,6 +3,7 @@ package cpu
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/bohuslavsemenov/tcpu/pkg/tryte"
 )
@@ -38,6 +39,12 @@ type CPU struct {
 	Stdout io.Writer
 }
 
+// Memory-mapped I/O addresses
+const (
+	AddrStdout = 9000
+	AddrStdin  = 9001
+)
+
 // Reset resets the CPU registers to their default state.
 func (cpu *CPU) Reset() {
 	for i := range cpu.R {
@@ -60,6 +67,20 @@ func (cpu *CPU) tryteToAddr(t tryte.Tryte) (int, error) {
 
 // ReadMem reads a Tryte from memory at the given Tryte address.
 func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
+	addrVal := addr.ToInt()
+	if addrVal == AddrStdin {
+		reader := cpu.Stdin
+		if reader == nil {
+			reader = os.Stdin
+		}
+		var buf [1]byte
+		n, err := reader.Read(buf[:])
+		if err != nil || n == 0 {
+			return tryte.Tryte{}, fmt.Errorf("failed to read from stdin: %w", err)
+		}
+		return tryte.FromInt(int(buf[0])), nil
+	}
+
 	idx, err := cpu.tryteToAddr(addr)
 	if err != nil {
 		return tryte.Tryte{}, err
@@ -69,6 +90,28 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 
 // WriteMem writes a Tryte to memory at the given Tryte address.
 func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
+	addrVal := addr.ToInt()
+	if addrVal == AddrStdout {
+		writer := cpu.Stdout
+		if writer == nil {
+			writer = os.Stdout
+		}
+		charByte := byte(val.ToInt())
+		if charByte == 10 { // ASCII 10 is '\n'
+			// In raw terminal mode, write carriage return '\r' before '\n' to prevent staircase effect
+			_, err := writer.Write([]byte{13, 10})
+			if err != nil {
+				return fmt.Errorf("failed to write to stdout: %w", err)
+			}
+			return nil
+		}
+		_, err := writer.Write([]byte{charByte})
+		if err != nil {
+			return fmt.Errorf("failed to write to stdout: %w", err)
+		}
+		return nil
+	}
+
 	idx, err := cpu.tryteToAddr(addr)
 	if err != nil {
 		return err

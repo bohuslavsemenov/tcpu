@@ -1,6 +1,8 @@
 package cpu
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/bohuslavsemenov/tcpu/pkg/tryte"
@@ -114,5 +116,61 @@ func TestCPU_StoreAndLoad(t *testing.T) {
 	_, _ = cpu.Step()
 	if cpu.R[2].ToInt() != 99 {
 		t.Errorf("expected R[2] to load 99, got %d", cpu.R[2].ToInt())
+	}
+}
+
+func TestCPU_MemoryMappedIO(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Inject custom mocked Stdin and Stdout
+	var stdoutBuf bytes.Buffer
+	stdinReader := strings.NewReader("A") // ASCII 65
+
+	cpu.Stdin = stdinReader
+	cpu.Stdout = &stdoutBuf
+
+	// Set registers to address values
+	cpu.R[1] = tryte.FromInt(9001) // stdin address
+	cpu.R[2] = tryte.FromInt(9000) // stdout address
+	cpu.R[3] = tryte.FromInt(1)    // constant 1 to add
+
+	// Program instructions:
+	// LD R1, R0    ; Load character from stdin (R1) into R0
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpLd, 1, 0))
+	// ADD R3, R0   ; R0 = R0 + R3 (65 + 1 = 66 -> ASCII 'B')
+	_ = cpu.WriteMem(tryte.FromInt(1), MakeInst(OpAdd, 3, 0))
+	// ST R0, R2    ; Write character from R0 to stdout (R2)
+	_ = cpu.WriteMem(tryte.FromInt(2), MakeInst(OpSt, 2, 0))
+	// HALT
+	_ = cpu.WriteMem(tryte.FromInt(3), MakeInst(OpHalt, 0, 0))
+
+	// Step 1: execute LD R1, R0
+	_, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("LD error: %v", err)
+	}
+	if cpu.R[0].ToInt() != 65 {
+		t.Errorf("expected R[0] to be 65, got %d", cpu.R[0].ToInt())
+	}
+
+	// Step 2: execute ADD R3, R0
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("ADD error: %v", err)
+	}
+	if cpu.R[0].ToInt() != 66 {
+		t.Errorf("expected R[0] to be 66, got %d", cpu.R[0].ToInt())
+	}
+
+	// Step 3: execute ST R0, R2
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("ST error: %v", err)
+	}
+	
+	outputStr := stdoutBuf.String()
+	if outputStr != "B" {
+		t.Errorf("expected stdout to receive 'B', got %q", outputStr)
 	}
 }

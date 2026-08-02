@@ -1,0 +1,19 @@
+; Echo program for Ternary CPU
+; Reads characters from stdin and echoes them to stdout in real-time,
+; stopping only when a newline character (ASCII 10, i.e. Enter key) is received.
+
+LDI 9001, R1   ; Load stdin address (9001) into R1
+LDI 9000, R2   ; Load stdout address (9000) into R2
+LDI 10, R3     ; Load newline character (ASCII 10) into R3 for comparison
+
+LOOP:
+LD R1, R0      ; Read character from stdin into R0
+ST R0, R2      ; Write character from R0 to stdout
+CMP R0, R3     ; Compare the character with newline (10)
+LDI END, R4    ; Load jump address for END into R4
+JEQ R4         ; If equal, branch to END
+LDI LOOP, R4   ; Otherwise load LOOP address
+JMP R4         ; Jump back to LOOP
+
+END:
+HALT           ; Stop execution

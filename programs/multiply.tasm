@@ -1,0 +1,177 @@
+; Multiplication program for Ternary CPU with Stdin/Stdout
+; Multiplies two interactive digits (0-9)
+
+; --- Setup Address Registers ---
+LDI 9001, R1      ; Stdin
+LDI 9000, R2      ; Stdout
+
+; Print "Enter A (0-9): "
+LDI 69, R0        ; 'E'
+ST R0, R2
+LDI 110, R0       ; 'n'
+ST R0, R2
+LDI 116, R0       ; 't'
+ST R0, R2
+LDI 101, R0       ; 'e'
+ST R0, R2
+LDI 114, R0       ; 'r'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+LDI 65, R0        ; 'A'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+LDI 40, R0        ; '('
+ST R0, R2
+LDI 48, R0        ; '0'
+ST R0, R2
+LDI 45, R0        ; '-'
+ST R0, R2
+LDI 57, R0        ; '9'
+ST R0, R2
+LDI 41, R0        ; ')'
+ST R0, R2
+LDI 58, R0        ; ':'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+
+; Read A
+LD R1, R3
+; Flush newline
+LDI 10, R8
+FLUSH_A:
+LD R1, R0
+CMP R0, R8
+LDI FLUSH_A, R0
+JNE R0
+
+; Clamp A: default to 5 if out of bounds '0'-'9'
+LDI 48, R8
+CMP R3, R8
+LDI A_DEFAULT, R8
+JGT R8
+LDI 57, R8
+CMP R3, R8
+LDI A_DEFAULT, R8
+JLT R8
+LDI -48, R8
+ADD R8, R3        ; Convert A to integer
+LDI PROMPT_B, R8
+JMP R8
+A_DEFAULT:
+LDI 5, R3
+
+PROMPT_B:
+; Print "Enter B (0-9): "
+LDI 69, R0        ; 'E'
+ST R0, R2
+LDI 110, R0       ; 'n'
+ST R0, R2
+LDI 116, R0       ; 't'
+ST R0, R2
+LDI 101, R0       ; 'e'
+ST R0, R2
+LDI 114, R0       ; 'r'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+LDI 66, R0        ; 'B'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+LDI 40, R0        ; '('
+ST R0, R2
+LDI 48, R0        ; '0'
+ST R0, R2
+LDI 45, R0        ; '-'
+ST R0, R2
+LDI 57, R0        ; '9'
+ST R0, R2
+LDI 41, R0        ; ')'
+ST R0, R2
+LDI 58, R0        ; ':'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+
+; Read B
+LD R1, R4
+; Flush newline
+LDI 10, R8
+FLUSH_B:
+LD R1, R0
+CMP R0, R8
+LDI FLUSH_B, R0
+JNE R0
+
+; Clamp B: default to 5 if out of bounds '0'-'9'
+LDI 48, R8
+CMP R4, R8
+LDI B_DEFAULT, R8
+JGT R8
+LDI 57, R8
+CMP R4, R8
+LDI B_DEFAULT, R8
+JLT R8
+LDI -48, R8
+ADD R8, R4        ; Convert B to integer
+LDI RUN_MUL, R8
+JMP R8
+B_DEFAULT:
+LDI 5, R4
+
+RUN_MUL:
+MUL R4, R3        ; R3 = A * B
+
+; Print "Result: "
+LDI 82, R0        ; 'R'
+ST R0, R2
+LDI 101, R0       ; 'e'
+ST R0, R2
+LDI 115, R0       ; 's'
+ST R0, R2
+LDI 117, R0       ; 'u'
+ST R0, R2
+LDI 108, R0       ; 'l'
+ST R0, R2
+LDI 116, R0       ; 't'
+ST R0, R2
+LDI 58, R0        ; ':'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+
+; Print R3 as decimal (max 81)
+LDI 10, R4        ; divisor
+LDI 0, R0         ; tens count
+TE_LOOP:
+CMP R3, R4
+LDI TE_DONE, R6
+JGT R6
+LDI -10, R6
+ADD R6, R3
+LDI 1, R6
+ADD R6, R0
+LDI TE_LOOP, R6
+JMP R6
+TE_DONE:
+; Print tens if > 0
+LDI 0, R6
+CMP R0, R6
+LDI PRINT_UNITS, R6
+JEQ R6
+LDI 48, R6
+ADD R0, R6
+ST R6, R2
+
+PRINT_UNITS:
+LDI 48, R6
+ADD R3, R6
+ST R6, R2
+
+LDI 10, R0        ; newline
+ST R0, R2
+
+HALT

@@ -1,0 +1,209 @@
+; Factorial program for Ternary CPU with Stdin/Stdout
+; Calculates N! (N between 1 and 7)
+
+; --- Setup Address Registers ---
+LDI 9001, R1      ; Stdin
+LDI 9000, R2      ; Stdout
+
+; Print "Enter N (1-7): "
+LDI 69, R0        ; 'E'
+ST R0, R2
+LDI 110, R0       ; 'n'
+ST R0, R2
+LDI 116, R0       ; 't'
+ST R0, R2
+LDI 101, R0       ; 'e'
+ST R0, R2
+LDI 114, R0       ; 'r'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+LDI 78, R0        ; 'N'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+LDI 40, R0        ; '('
+ST R0, R2
+LDI 49, R0        ; '1'
+ST R0, R2
+LDI 45, R0        ; '-'
+ST R0, R2
+LDI 55, R0        ; '7'
+ST R0, R2
+LDI 41, R0        ; ')'
+ST R0, R2
+LDI 58, R0        ; ':'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+
+; Read char from stdin
+LD R1, R0
+
+; Flush newline
+LDI 10, R8
+FLUSH_LOOP:
+LD R1, R3
+CMP R3, R8
+LDI FLUSH_LOOP, R3
+JNE R3
+
+; Clamp input: default to 5 if out of bounds '1'-'7'
+LDI 49, R8
+CMP R0, R8
+LDI USE_DEFAULT, R8
+JGT R8            ; key < '1' -> default
+
+LDI 55, R8
+CMP R0, R8
+LDI USE_DEFAULT, R8
+JLT R8            ; key > '7' -> default
+
+LDI -48, R8
+ADD R8, R0        ; Convert ASCII to integer (1-7)
+LDI RUN_CALC, R8
+JMP R8
+
+USE_DEFAULT:
+LDI 5, R0
+
+RUN_CALC:
+; R0 = N (Counter)
+; R3 = Accumulator (starts at 1)
+LDI 1, R3
+; R4 = Limit (1)
+LDI 1, R4
+; R5 = Constant -1 for decrement
+LDI -1, R5
+
+FACT_LOOP:
+CMP R0, R4        ; Compare N with 1
+LDI PRINT_RESULT, R8
+JEQ R8            ; If N == 1, jump to printing
+
+MUL R0, R3        ; Accumulator = Accumulator * N
+ADD R5, R0        ; N = N - 1
+LDI FACT_LOOP, R8
+JMP R8
+
+PRINT_RESULT:
+; Print "Result: "
+LDI 82, R0        ; 'R'
+ST R0, R2
+LDI 101, R0       ; 'e'
+ST R0, R2
+LDI 115, R0       ; 's'
+ST R0, R2
+LDI 117, R0       ; 'u'
+ST R0, R2
+LDI 108, R0       ; 'l'
+ST R0, R2
+LDI 116, R0       ; 't'
+ST R0, R2
+LDI 58, R0        ; ':'
+ST R0, R2
+LDI 32, R0        ; ' '
+ST R0, R2
+
+; Print Accumulator (R3) as decimal
+LDI 0, R8         ; non-zero digit printed flag
+LDI 1000, R4      ; R4 = divisor
+
+; --- Thousands ---
+LDI 0, R0         ; count
+TH_LOOP:
+CMP R3, R4
+LDI TH_DONE, R6
+JGT R6            ; R3 < 1000
+LDI -1000, R6
+ADD R6, R3
+LDI 1, R6
+ADD R6, R0
+LDI TH_LOOP, R6
+JMP R6
+TH_DONE:
+LDI 0, R6
+CMP R0, R6
+LDI TH_SKIP, R6
+JEQ R6
+LDI 1, R8         ; flag = 1
+LDI 48, R6
+ADD R0, R6
+ST R6, R2         ; print digit
+TH_SKIP:
+
+; --- Hundreds ---
+LDI 100, R4       ; divisor
+LDI 0, R0         ; count
+HU_LOOP:
+CMP R3, R4
+LDI HU_DONE, R6
+JGT R6            ; R3 < 100
+LDI -100, R6
+ADD R6, R3
+LDI 1, R6
+ADD R6, R0
+LDI HU_LOOP, R6
+JMP R6
+HU_DONE:
+LDI 0, R6
+CMP R0, R6
+LDI HU_CHECK_FLAG, R6
+JEQ R6
+LDI 1, R8
+LDI 48, R6
+ADD R0, R6
+ST R6, R2
+LDI HU_SKIP, R6
+JMP R6
+HU_CHECK_FLAG:
+LDI 1, R6
+CMP R8, R6
+LDI HU_SKIP, R6
+JNE R6            ; flag == 0
+LDI 48, R6
+ST R6, R2
+HU_SKIP:
+
+; --- Tens ---
+LDI 10, R4        ; divisor
+LDI 0, R0         ; count
+TE_LOOP:
+CMP R3, R4
+LDI TE_DONE, R6
+JGT R6            ; R3 < 10
+LDI -10, R6
+ADD R6, R3
+LDI 1, R6
+ADD R6, R0
+LDI TE_LOOP, R6
+JMP R6
+TE_DONE:
+LDI 0, R6
+CMP R0, R6
+LDI TE_CHECK_FLAG, R6
+JEQ R6
+LDI 1, R8
+LDI 48, R6
+ADD R0, R6
+ST R6, R2
+LDI TE_SKIP, R6
+JMP R6
+TE_CHECK_FLAG:
+LDI 1, R6
+CMP R8, R6
+LDI TE_SKIP, R6
+JNE R6
+LDI 48, R6
+ST R6, R2
+TE_SKIP:
+
+; --- Units ---
+LDI 48, R6
+ADD R3, R6
+ST R6, R2
+
+LDI 10, R0        ; newline
+ST R0, R2
+
+HALT

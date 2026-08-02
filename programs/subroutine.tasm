@@ -1,0 +1,34 @@
+; --- Subroutine Demo for Ternary CPU ---
+; Demonstrates CALL and RET instructions using R8 as the Link Register (LR)
+
+LDI 9000, R2        ; R2 = Stdout Address
+
+; Call Subroutine A
+LDI SUB_A, R0
+CALL R0
+
+; Call Subroutine B
+LDI SUB_B, R0
+CALL R0
+
+; Print newline
+LDI 10, R0
+ST R0, R2
+
+HALT
+
+; =====================================================================
+; SUBROUTINES
+; =====================================================================
+
+; Subroutine A: Prints 'A' (ASCII 65)
+SUB_A:
+LDI 65, R3
+ST R3, R2
+RET
+
+; Subroutine B: Prints 'B' (ASCII 66)
+SUB_B:
+LDI 66, R3
+ST R3, R2
+RET

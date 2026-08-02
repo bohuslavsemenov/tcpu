@@ -1,0 +1,35 @@
+; Hello World program for Ternary CPU
+; Outputs "Hello, World!" followed by a newline to stdout
+
+LDI 9000, R1    ; Load stdout address (9000) into R1
+
+LDI 72, R0      ; 'H'
+ST R0, R1
+LDI 101, R0     ; 'e'
+ST R0, R1
+LDI 108, R0     ; 'l'
+ST R0, R1
+LDI 108, R0     ; 'l'
+ST R0, R1
+LDI 111, R0     ; 'o'
+ST R0, R1
+LDI 44, R0      ; ','
+ST R0, R1
+LDI 32, R0      ; ' '
+ST R0, R1
+LDI 87, R0      ; 'W'
+ST R0, R1
+LDI 111, R0     ; 'o'
+ST R0, R1
+LDI 114, R0     ; 'r'
+ST R0, R1
+LDI 108, R0     ; 'l'
+ST R0, R1
+LDI 100, R0     ; 'd'
+ST R0, R1
+LDI 33, R0      ; '!'
+ST R0, R1
+LDI 10, R0      ; '\n'
+ST R0, R1
+
+HALT            ; Halt execution

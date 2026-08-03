@@ -1,0 +1,69 @@
+; --- Ternary Interrupt Clock Demo ---
+; Sets up a 10Hz hardware timer interrupt to track and print seconds.
+; Stdout address = 9000, IVR address = 9003
+
+LDI 9000, R2        ; R2 = Stdout Address
+LDI 9003, R0
+LDI TICK_HANDLER, R1
+ST R1, R0           ; set IVR = TICK_HANDLER
+
+; Initialize counter and seconds to 0 in memory
+LDI 0, R0
+LDI 1000, R1
+ST R0, R1           ; Memory[1000] = tick_counter
+LDI 1001, R1
+ST R0, R1           ; Memory[1001] = seconds_counter
+
+; Use R7 for main loop jump target to avoid register clobbering by interrupts
+LDI MAIN_LOOP, R7
+MAIN_LOOP:
+JMP R7
+
+; =====================================================================
+; INTERRUPT HANDLER (Vector set via IVR)
+; =====================================================================
+TICK_HANDLER:
+; Increment tick counter
+LDI 1000, R0
+LD R0, R3           ; R3 = tick_counter
+LDI 1, R1
+ADD R1, R3          ; tick_counter++
+ST R3, R0
+
+; Check if tick_counter == 10 (1 second)
+LDI 10, R1
+CMP R3, R1
+LDI RETURN_INT, R1
+JNE R1              ; not 10 yet -> return from interrupt
+
+; 1 Second has elapsed!
+; Reset tick_counter to 0
+LDI 0, R3
+ST R3, R0
+
+; Increment seconds_counter
+LDI 1001, R0
+LD R0, R4           ; R4 = seconds_counter
+LDI 1, R1
+ADD R1, R4          ; seconds_counter++
+ST R4, R0
+
+; Output seconds counter as ASCII digit (seconds + 48)
+LDI 48, R1
+ADD R1, R4
+ST R4, R2           ; print character to stdout
+
+; If seconds reaches 9, print newline and halt
+LDI 9, R0
+LDI 48, R1
+ADD R1, R0          ; R0 = '9'
+CMP R4, R0
+LDI RETURN_INT, R0
+JNE R0
+
+LDI 10, R0          ; '\n'
+ST R0, R2
+HALT                ; stop execution!
+
+RETURN_INT:
+RTE

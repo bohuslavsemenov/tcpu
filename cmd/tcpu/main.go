@@ -140,7 +140,14 @@ func main() {
 	}
 
 	stepCount := 0
+	lastTick := time.Now()
 	for {
+		// Trigger a hardware timer interrupt at 10Hz (every 100ms)
+		if time.Since(lastTick) >= 100*time.Millisecond {
+			tcpu.TriggerInterrupt()
+			lastTick = time.Now()
+		}
+
 		stepCount++
 		currentPC := tcpu.PC.ToInt()
 

@@ -258,3 +258,24 @@ func TestOr(t *testing.T) {
 		t.Errorf("Or(%v, %v) = %v, expected %v", a, b, got, expected)
 	}
 }
+
+func TestShift(t *testing.T) {
+	var alu ALU
+
+	// Test ShiftLeft: 5 shifted left by 2 should be 5 * 9 = 45
+	val := tryte.FromInt(5)
+	shifted, overflow := alu.ShiftLeft(val, 2)
+	if shifted.ToInt() != 45 {
+		t.Errorf("ShiftLeft(5, 2) = %d, expected 45", shifted.ToInt())
+	}
+	if overflow {
+		t.Errorf("ShiftLeft(5, 2) reported unexpected overflow")
+	}
+
+	// Test ShiftRight: 45 shifted right by 2 should be 45 / 9 = 5
+	val2 := tryte.FromInt(45)
+	shifted2 := alu.ShiftRight(val2, 2)
+	if shifted2.ToInt() != 5 {
+		t.Errorf("ShiftRight(45, 2) = %d, expected 5", shifted2.ToInt())
+	}
+}

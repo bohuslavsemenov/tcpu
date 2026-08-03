@@ -139,3 +139,28 @@ func TestAssemble_LogicalOperations(t *testing.T) {
 		t.Errorf("expected instruction 1 to be OR R2, R3, got %v", bytecode[1])
 	}
 }
+
+func TestAssemble_ShiftOperations(t *testing.T) {
+	source := `
+		SHL R1, R0
+		SHR R2, R3
+	`
+	bytecode, err := Assemble(source)
+	if err != nil {
+		t.Fatalf("Assemble failed: %v", err)
+	}
+
+	if len(bytecode) != 2 {
+		t.Fatalf("expected bytecode size 2, got %d", len(bytecode))
+	}
+
+	expectedShl := makeInst(cpu.OpShl, 1, 0)
+	if bytecode[0] != expectedShl {
+		t.Errorf("expected instruction 0 to be SHL R1, R0, got %v", bytecode[0])
+	}
+
+	expectedShr := makeInst(cpu.OpShr, 2, 3)
+	if bytecode[1] != expectedShr {
+		t.Errorf("expected instruction 1 to be SHR R2, R3, got %v", bytecode[1])
+	}
+}

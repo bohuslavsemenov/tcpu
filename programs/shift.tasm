@@ -1,0 +1,21 @@
+; --- Ternary Shift Demo (SHL & SHR) ---
+; Demonstrates shifting trits left and right
+
+LDI 5, R0           ; R0 = 5
+LDI 2, R1           ; R1 = 2 (shift amount)
+
+; Shift Left: R0 = R0 << R1 (5 * 3^2 = 45)
+SHL R1, R0
+
+; Store result at memory address 1000
+LDI 1000, R2
+ST R0, R2
+
+; Shift Right: R0 = R0 >> R1 (45 / 3^2 = 5)
+SHR R1, R0
+
+; Store result at memory address 1001
+LDI 1001, R2
+ST R0, R2
+
+HALT

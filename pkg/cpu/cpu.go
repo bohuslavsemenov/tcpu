@@ -29,6 +29,8 @@ const (
 	OpRet  = -8
 	OpAnd  = 9
 	OpOr   = -9
+	OpShl  = 10
+	OpShr  = -10
 )
 
 type CPU struct {
@@ -297,6 +299,14 @@ func (cpu *CPU) Step() (bool, error) {
 
 	case OpOr: // OR: R[dst] = R[dst] OR R[src]
 		cpu.R[dstIdx] = cpu.ALU.Or(cpu.R[dstIdx], cpu.R[srcIdx])
+
+	case OpShl: // SHL: R[dst] = R[dst] << R[src] (trits)
+		res, overflow := cpu.ALU.ShiftLeft(cpu.R[dstIdx], cpu.R[srcIdx].ToInt())
+		cpu.R[dstIdx] = res
+		cpu.Carry = overflow
+
+	case OpShr: // SHR: R[dst] = R[dst] >> R[src] (trits)
+		cpu.R[dstIdx] = cpu.ALU.ShiftRight(cpu.R[dstIdx], cpu.R[srcIdx].ToInt())
 
 	default:
 		return false, fmt.Errorf("unknown opcode: %d", op)

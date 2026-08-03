@@ -288,3 +288,39 @@ func TestCPU_LogicalOperations(t *testing.T) {
 		t.Errorf("expected R0 after OR to be %v, got %v", expectedOr, cpu.R[0])
 	}
 }
+
+func TestCPU_ShiftOperations(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Initial values: R0 = 5, R1 = 2 (shift amount)
+	cpu.R[0] = tryte.FromInt(5)
+	cpu.R[1] = tryte.FromInt(2)
+
+	// Program:
+	// SHL R1, R0 -> R0 = R0 << 2 (expected 5 * 9 = 45)
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpShl, 1, 0))
+	// SHR R1, R0 -> R0 = R0 >> 2 (expected 45 / 9 = 5)
+	_ = cpu.WriteMem(tryte.FromInt(1), MakeInst(OpShr, 1, 0))
+
+	// Step 1: execute SHL
+	_, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("SHL execution error: %v", err)
+	}
+	if cpu.R[0].ToInt() != 45 {
+		t.Errorf("expected R0 after SHL to be 45, got %d", cpu.R[0].ToInt())
+	}
+	if cpu.Carry {
+		t.Errorf("expected no carry after SHL, got true")
+	}
+
+	// Step 2: execute SHR
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("SHR execution error: %v", err)
+	}
+	if cpu.R[0].ToInt() != 5 {
+		t.Errorf("expected R0 after SHR to be 5, got %d", cpu.R[0].ToInt())
+	}
+}

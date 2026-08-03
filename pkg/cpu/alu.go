@@ -98,3 +98,13 @@ func (alu *ALU) Or(a, b tryte.Tryte) tryte.Tryte {
 	}
 	return result
 }
+
+// ShiftLeft shifts a Tryte left by n trits
+func (alu *ALU) ShiftLeft(a tryte.Tryte, n int) (tryte.Tryte, bool) {
+	return a.ShiftLeft(n)
+}
+
+// ShiftRight shifts a Tryte right by n trits
+func (alu *ALU) ShiftRight(a tryte.Tryte, n int) tryte.Tryte {
+	return a.ShiftRight(n)
+}

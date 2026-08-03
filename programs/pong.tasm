@@ -1,0 +1,531 @@
+; --- Ternary Pong Game (with Hardware Framebuffer) ---
+; A two-player Pong game using the 12x12 memory-mapped display.
+; Play using 'w' (up) and 's' (down) to move your right paddle.
+; The left paddle is controlled by a tracking computer AI.
+; Stdin address = 9001, Stdout address = 9000, VideoRefresh = 9002
+; VRAM start = 2000, VRAM end = 2143
+
+; --- Initialize registers ---
+LDI 9001, R1        ; R1 = Stdin Address
+LDI 9000, R2        ; R2 = Stdout Address
+
+; --- Initialize game state variables in memory ---
+LDI 5, R0
+LDI 1000, R3
+ST R0, R3           ; Y_comp = 5
+LDI 1001, R3
+ST R0, R3           ; Y_user = 5
+LDI 1002, R3
+ST R0, R3           ; X_ball = 5
+LDI 1003, R3
+ST R0, R3           ; Y_ball = 5
+
+LDI 1, R0
+LDI 1004, R3
+ST R0, R3           ; DX_ball = 1
+LDI -1, R0
+LDI 1005, R3
+ST R0, R3           ; DY_ball = -1
+
+LDI 0, R0
+LDI 1006, R3
+ST R0, R3           ; Score_comp = 0
+LDI 1007, R3
+ST R0, R3           ; Score_user = 0
+
+; =====================================================================
+; MAIN GAME LOOP
+; =====================================================================
+GAME_LOOP:
+
+; --- Step 1. Clear VRAM Display (2000 to 2143) ---
+LDI 2000, R0        ; pointer
+LDI 2144, R7        ; end
+CLEAR_VRAM:
+LDI 0, R8
+ST R8, R0
+LDI 1, R8
+ADD R8, R0
+CMP R0, R7
+LDI CLEAR_VRAM, R8
+JNE R8
+
+; --- Step 2. Draw Computer Paddle (Col 0, Y_comp-1 to Y_comp+1) ---
+LDI 1000, R0
+LD R0, R3           ; R3 = Y_comp
+
+; Segment 1: Y_comp - 1
+LDI -1, R4
+ADD R3, R4          ; R4 = Y_comp - 1
+LDI PRINT_COMP_S1, R0
+CALL R0
+
+; Segment 2: Y_comp
+LDI 0, R4
+ADD R3, R4          ; R4 = Y_comp
+LDI PRINT_COMP_S1, R0
+CALL R0
+
+; Segment 3: Y_comp + 1
+LDI 1, R4
+ADD R3, R4          ; R4 = Y_comp + 1
+LDI PRINT_COMP_S1, R0
+CALL R0
+LDI DRAW_USER_PADDLE, R0
+JMP R0
+
+PRINT_COMP_S1:
+; VRAM address = 2000 + R4 * 12
+LDI 0, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+LDI 2000, R0
+ADD R0, R7
+LDI 124, R5         ; R5 = '|'
+ST R5, R7           ; write '|' to VRAM
+RET
+
+DRAW_USER_PADDLE:
+; --- Step 3. Draw Player Paddle (Col 11, Y_user-1 to Y_user+1) ---
+LDI 1001, R0
+LD R0, R3           ; R3 = Y_user
+
+; Segment 1: Y_user - 1
+LDI -1, R4
+ADD R3, R4          ; R4 = Y_user - 1
+LDI PRINT_USER_S1, R0
+CALL R0
+
+; Segment 2: Y_user
+LDI 0, R4
+ADD R3, R4          ; R4 = Y_user
+LDI PRINT_USER_S1, R0
+CALL R0
+
+; Segment 3: Y_user + 1
+LDI 1, R4
+ADD R3, R4          ; R4 = Y_user + 1
+LDI PRINT_USER_S1, R0
+CALL R0
+LDI DRAW_BALL, R0
+JMP R0
+
+PRINT_USER_S1:
+; VRAM address = 2000 + R4 * 12 + 11
+LDI 0, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+LDI 2011, R0
+ADD R0, R7
+LDI 124, R5         ; R5 = '|'
+ST R5, R7           ; write '|' to VRAM
+RET
+
+DRAW_BALL:
+; --- Step 4. Draw Ball (Col X_ball, Row Y_ball) ---
+LDI 1002, R0
+LD R0, R3           ; R3 = X_ball
+LDI 1003, R0
+LD R0, R4           ; R4 = Y_ball
+
+; VRAM address = 2000 + Y_ball * 12 + X_ball
+LDI 0, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+LDI 2000, R0
+ADD R0, R7
+ADD R3, R7          ; R7 = target address
+LDI 42, R8          ; '*'
+ST R8, R7           ; write '*' to VRAM
+
+; --- Step 5. Trigger Video Refresh ---
+LDI 9002, R0
+LDI 1, R8
+ST R8, R0
+
+; --- Step 6. Print Scores ---
+LDI 67, R0          ; 'C'
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 77, R0          ; 'M'
+ST R0, R2
+LDI 58, R0          ; ':'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 1006, R0
+LD R0, R3           ; R3 = Score_comp
+LDI 48, R0
+ADD R3, R0
+ST R0, R2
+
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 124, R0         ; '|'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+LDI 89, R0          ; 'Y'
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 85, R0          ; 'U'
+ST R0, R2
+LDI 58, R0          ; ':'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 1007, R0
+LD R0, R4           ; R4 = Score_user
+LDI 48, R0
+ADD R4, R0
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+
+; --- Step 7. Check Game Over (Score to 5) ---
+LDI 5, R0
+CMP R3, R0
+LDI COMP_WINS, R0
+JEQ R0
+
+LDI 5, R0
+CMP R4, R0
+LDI USER_WINS, R0
+JEQ R0
+
+; --- Step 8. Read Keyboard Input (Player Movement) ---
+LD R1, R0           ; read key
+
+; Handle 'q' -> quit
+LDI 113, R8         ; 'q'
+CMP R0, R8
+LDI QUIT_GAME, R8
+JEQ R8
+
+LDI 1001, R7
+LD R7, R3           ; R3 = Y_user
+
+; Handle 'w' -> Up (Y_user - 1)
+LDI 119, R8         ; 'w'
+CMP R0, R8
+LDI MOVE_USER_UP, R8
+JEQ R8
+
+; Handle 's' -> Down (Y_user + 1)
+LDI 115, R8         ; 's'
+CMP R0, R8
+LDI MOVE_USER_DOWN, R8
+JEQ R8
+LDI COMPUTER_AI, R8
+JMP R8
+
+MOVE_USER_UP:
+LDI -1, R8
+ADD R8, R3
+; Clamp Y_user >= 1
+LDI 1, R8
+CMP R3, R8
+LDI CLAMP_USER_UP, R8
+JGT R8              ; if 1 > Y_user, clamp!
+LDI SAVE_USER, R8
+JMP R8
+CLAMP_USER_UP:
+LDI 1, R3
+LDI SAVE_USER, R8
+JMP R8
+
+MOVE_USER_DOWN:
+LDI 1, R8
+ADD R8, R3
+; Clamp Y_user <= 10
+LDI 10, R8
+CMP R3, R8
+LDI CLAMP_USER_DOWN, R8
+JLT R8              ; if 10 < Y_user, clamp!
+LDI SAVE_USER, R8
+JMP R8
+CLAMP_USER_DOWN:
+LDI 10, R3
+
+SAVE_USER:
+ST R3, R7           ; Save updated Y_user to 1001
+
+COMPUTER_AI:
+; --- Step 9. Computer AI (tracks ball Y) ---
+LDI 1003, R0
+LD R0, R4           ; R4 = Y_ball
+LDI 1000, R7
+LD R7, R3           ; R3 = Y_comp
+
+CMP R4, R3          ; compare Y_ball and Y_comp
+LDI AI_MOVE_DOWN, R0
+JGT R0              ; Y_ball > Y_comp -> move down
+LDI AI_MOVE_UP, R0
+JLT R0              ; Y_ball < Y_comp -> move up
+LDI UPDATE_BALL, R0
+JMP R0
+
+AI_MOVE_DOWN:
+LDI 1, R0
+ADD R0, R3
+; Clamp Y_comp <= 10
+LDI 10, R0
+CMP R3, R0
+LDI CLAMP_AI_DOWN, R0
+JLT R0
+LDI SAVE_AI, R0
+JMP R0
+CLAMP_AI_DOWN:
+LDI 10, R3
+LDI SAVE_AI, R0
+JMP R0
+
+AI_MOVE_UP:
+LDI -1, R0
+ADD R0, R3
+; Clamp Y_comp >= 1
+LDI 1, R0
+CMP R3, R0
+LDI CLAMP_AI_UP, R0
+JGT R0
+LDI SAVE_AI, R0
+JMP R0
+CLAMP_AI_UP:
+LDI 1, R3
+
+SAVE_AI:
+ST R3, R7           ; Save updated Y_comp to 1000
+
+UPDATE_BALL:
+; --- Step 10. Update Ball Position and Collisions ---
+LDI 1002, R0
+LD R0, R3           ; R3 = X_ball
+LDI 1003, R0
+LD R0, R4           ; R4 = Y_ball
+
+LDI 1004, R0
+LD R0, R5           ; R5 = DX_ball
+LDI 1005, R0
+LD R0, R6           ; R6 = DY_ball
+
+ADD R5, R3          ; X_ball = X_ball + DX_ball
+ADD R6, R4          ; Y_ball = Y_ball + DY_ball
+
+; Y Collision: Top wall (Y_ball == 0)
+LDI 0, R0
+CMP R4, R0
+LDI BOUNCE_Y, R0
+JEQ R0
+
+; Y Collision: Bottom wall (Y_ball == 11)
+LDI 11, R0
+CMP R4, R0
+LDI BOUNCE_Y, R0
+JEQ R0
+LDI X_COLLISION, R0
+JMP R0
+
+BOUNCE_Y:
+LDI -1, R0
+MUL R0, R6          ; DY_ball = -DY_ball
+LDI 1005, R0
+ST R6, R0           ; save new DY
+
+X_COLLISION:
+; X Collision: Left Paddle (X_ball == 1)
+LDI 1, R0
+CMP R3, R0
+LDI CHECK_LEFT_PADDLE, R0
+JEQ R0
+
+; X Collision: Right Paddle (X_ball == 10)
+LDI 10, R0
+CMP R3, R0
+LDI CHECK_RIGHT_PADDLE, R0
+JEQ R0
+LDI SCORE_CHECK, R0
+JMP R0
+
+CHECK_LEFT_PADDLE:
+; Check if Y_ball is within [Y_comp-1, Y_comp+1]
+LDI 1000, R0
+LD R0, R7           ; R7 = Y_comp
+
+LDI -1, R8
+ADD R7, R8          ; R8 = Y_comp - 1
+CMP R4, R8
+LDI SCORE_CHECK, R8
+JGT R8              ; if Y_ball < Y_comp-1, miss!
+
+LDI 1, R8
+ADD R7, R8          ; R8 = Y_comp + 1
+CMP R4, R8
+LDI SCORE_CHECK, R8
+JLT R8              ; if Y_ball > Y_comp+1, miss!
+
+; Bounce left!
+LDI 1, R5           ; DX_ball = 1
+LDI 1004, R0
+ST R5, R0           ; save DX
+LDI SCORE_CHECK, R0
+JMP R0
+
+CHECK_RIGHT_PADDLE:
+; Check if Y_ball is within [Y_user-1, Y_user+1]
+LDI 1001, R0
+LD R0, R7           ; R7 = Y_user
+
+LDI -1, R8
+ADD R7, R8          ; R8 = Y_user - 1
+CMP R4, R8
+LDI SCORE_CHECK, R8
+JGT R8              ; if Y_ball < Y_user-1, miss!
+
+LDI 1, R8
+ADD R7, R8          ; R8 = Y_user + 1
+CMP R4, R8
+LDI SCORE_CHECK, R8
+JLT R8              ; if Y_ball > Y_user+1, miss!
+
+; Bounce right!
+LDI -1, R5          ; DX_ball = -1
+LDI 1004, R0
+ST R5, R0           ; save DX
+
+SCORE_CHECK:
+; Check if Computer scores (X_ball == 11)
+LDI 11, R0
+CMP R3, R0
+LDI COMP_SCORES, R0
+JEQ R0
+
+; Check if Player scores (X_ball == 0)
+LDI 0, R0
+CMP R3, R0
+LDI USER_SCORES, R0
+JEQ R0
+
+; Save ball position
+LDI 1002, R0
+ST R3, R0
+LDI 1003, R0
+ST R4, R0
+LDI GAME_LOOP, R0
+JMP R0
+
+COMP_SCORES:
+; Score for computer!
+LDI 1006, R0
+LD R0, R8
+LDI 1, R7
+ADD R7, R8          ; Score_comp++
+ST R8, R0
+LDI RESET_BALL, R0
+JMP R0
+
+USER_SCORES:
+; Score for player!
+LDI 1007, R0
+LD R0, R8
+LDI 1, R7
+ADD R7, R8          ; Score_user++
+ST R8, R0
+
+RESET_BALL:
+; Reset ball to center (5, 5)
+LDI 5, R0
+LDI 1002, R7
+ST R0, R7           ; X_ball = 5
+LDI 1003, R7
+ST R0, R7           ; Y_ball = 5
+
+; Flip serve direction (DX = -DX)
+LDI 1004, R7
+LD R7, R8
+LDI -1, R0
+MUL R0, R8
+ST R8, R7
+
+LDI GAME_LOOP, R0
+JMP R0
+
+; --- Score End Handlers ---
+COMP_WINS:
+LDI 67, R0          ; 'C'
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 77, R0          ; 'M'
+ST R0, R2
+LDI 80, R0          ; 'P'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 87, R0          ; 'W'
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 78, R0          ; 'N'
+ST R0, R2
+LDI 33, R0          ; '!'
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+LDI QUIT_GAME, R0
+JMP R0
+
+USER_WINS:
+LDI 89, R0          ; 'Y'
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 85, R0          ; 'U'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 87, R0          ; 'W'
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 78, R0          ; 'N'
+ST R0, R2
+LDI 33, R0          ; '!'
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+
+QUIT_GAME:
+HALT

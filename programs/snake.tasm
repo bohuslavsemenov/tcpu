@@ -1,0 +1,530 @@
+; --- Ternary Snake Game (with Hardware Framebuffer) ---
+; A turn-based Snake game using the 12x12 memory-mapped display.
+; Play using 'w' (up), 'a' (left), 's' (down), 'd' (right), followed by Enter.
+; Type 'q' and press Enter to quit.
+; Stdin address = 9001, Stdout address = 9000, VideoRefresh = 9002
+; VRAM start = 2000, VRAM end = 2143 (12x12 grid)
+
+; --- Initialize CPU registers ---
+LDI 9001, R1        ; R1 = Stdin Address
+LDI 9000, R2        ; R2 = Stdout Address
+LDI 5, R3           ; R3 = Head X (initially 5)
+LDI 5, R4           ; R4 = Head Y (initially 5)
+LDI 3, R5           ; R5 = Snake Length L (initially 3)
+LDI 2, R6           ; R6 = Direction (1=Up, 2=Right, 3=Down, 4=Left) - starts Right
+LDI 3, R7           ; R7 = Food X (initially 3)
+LDI 7, R8           ; R8 = Food Y (initially 7)
+
+; --- Clear board memory (1000 to 1143 -> 144 cells) ---
+LDI 1000, R0        ; R0 = loop address pointer
+LDI 1144, R7        ; R7 = end address pointer
+CLEAR_LOOP:
+LDI 0, R8
+ST R8, R0           ; write 0 to board cell
+LDI 1, R8
+ADD R8, R0          ; pointer++
+CMP R0, R7
+LDI CLEAR_LOOP, R8
+JNE R8
+
+; Restore Food X and Y to registers
+LDI 3, R7           ; R7 = Food X
+LDI 7, R8           ; R8 = Food Y
+LDI 1150, R0
+ST R7, R0           ; Save initial Food X to memory 1150
+LDI 1151, R0
+ST R8, R0           ; Save initial Food Y to memory 1151
+
+; Mark initial head on board (1000 + 5*12 + 5 = 1065) with value L (3)
+LDI 1065, R0
+ST R5, R0
+
+; Mark initial food on board (1000 + 7*12 + 3 = 1087) with value -1
+LDI 1087, R0
+LDI -1, R8          ; Temporary load -1 to write
+ST R8, R0
+
+; =====================================================================
+; MAIN GAME LOOP
+; =====================================================================
+GAME_LOOP:
+
+; Save game state registers to free them for the drawing loop
+LDI 1152, R0
+ST R3, R0           ; Save Head X to 1152
+LDI 1153, R0
+ST R4, R0           ; Save Head Y to 1153
+LDI 1154, R0
+ST R5, R0           ; Save Length L to 1154
+LDI 1155, R0
+ST R6, R0           ; Save Direction to 1155
+
+; --- Draw to Framebuffer ---
+LDI 0, R7           ; R7 = loop y
+Y_LOOP:
+LDI 0, R8           ; R8 = loop x
+X_LOOP:
+; Calculate cell address: 1000 + y*12 + x
+LDI 0, R5           ; R5 = y * 12
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+LDI 1000, R0
+ADD R0, R5
+ADD R8, R5          ; R5 = 1000 + y*12 + x (internal board cell address)
+LD R5, R3           ; R3 = cell value
+
+; Calculate VRAM address: 2000 + y*12 + x
+LDI 0, R5           ; R5 = y * 12
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+ADD R7, R5
+LDI 2000, R0
+ADD R0, R5
+ADD R8, R5          ; R5 = VRAM cell address
+
+; Determine character to write to VRAM:
+LDI 0, R4
+CMP R3, R4
+LDI WRITE_EMPTY, R0
+JEQ R0              ; value == 0
+
+LDI -1, R4
+CMP R3, R4
+LDI WRITE_FOOD, R0
+JEQ R0              ; value == -1
+
+LDI 1154, R0
+LD R0, R4           ; R4 = length L
+CMP R3, R4
+LDI WRITE_HEAD, R0
+JEQ R0              ; value == L (head)
+
+; Else, it is a body cell (value > 0). Write 'O'
+LDI 79, R0          ; 'O'
+ST R0, R5
+LDI NEXT_CELL, R0
+JMP R0
+
+WRITE_HEAD:
+LDI 83, R0          ; 'S' (snake head)
+ST R0, R5
+LDI NEXT_CELL, R0
+JMP R0
+
+WRITE_EMPTY:
+LDI 0, R0           ; 0 (tells display to render default '.' empty character)
+ST R0, R5
+LDI NEXT_CELL, R0
+JMP R0
+
+WRITE_FOOD:
+LDI 42, R0          ; '*' (food)
+ST R0, R5
+
+NEXT_CELL:
+; Increment loop x (R8)
+LDI 1, R0
+ADD R0, R8
+LDI 12, R0
+CMP R8, R0
+LDI X_LOOP, R0
+JNE R0              ; if x < 12, loop x
+
+; Increment loop y (R7)
+LDI 1, R0
+ADD R0, R7
+LDI 12, R0
+CMP R7, R0
+LDI Y_LOOP, R0
+JNE R0              ; if y < 12, loop y
+
+; Trigger video refresh
+LDI 9002, R0
+LDI 1, R7
+ST R7, R0           ; write 1 to trigger display
+
+; Restore game state registers from memory
+LDI 1152, R0
+LD R0, R3           ; Restore Head X
+LDI 1153, R0
+LD R0, R4           ; Restore Head Y
+LDI 1154, R0
+LD R0, R5           ; Restore Length L
+LDI 1155, R0
+LD R0, R6           ; Restore Direction
+
+; --- Print Score and Length Info under the display ---
+LDI 83, R0          ; 'S'
+ST R0, R2
+LDI 99, R0          ; 'c'
+ST R0, R2
+LDI 111, R0         ; 'o'
+ST R0, R2
+LDI 114, R0         ; 'r'
+ST R0, R2
+LDI 101, R0         ; 'e'
+ST R0, R2
+LDI 58, R0          ; ':'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+; Print length numerical value (Length - 3)
+LDI -3, R0
+ADD R5, R0          ; Score = L - 3
+LDI 48, R7
+ADD R7, R0          ; convert single digit to ASCII
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+
+; Prompt: "Move (wasd, q): "
+LDI 77, R0          ; 'M'
+ST R0, R2
+LDI 111, R0         ; 'o'
+ST R0, R2
+LDI 118, R0         ; 'v'
+ST R0, R2
+LDI 101, R0         ; 'e'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 40, R0          ; '('
+ST R0, R2
+LDI 119, R0         ; 'w'
+ST R0, R2
+LDI 97, R0          ; 'a'
+ST R0, R2
+LDI 115, R0         ; 's'
+ST R0, R2
+LDI 100, R0         ; 'd'
+ST R0, R2
+LDI 44, R0          ; ','
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 113, R0         ; 'q'
+ST R0, R2
+LDI 41, R0          ; ')'
+ST R0, R2
+LDI 58, R0          ; ':'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+; --- Read Keyboard Input ---
+LD R1, R0           ; read character from stdin into R0
+
+; Handle 'q' -> quit
+LDI 113, R8         ; 'q'
+CMP R0, R8
+LDI QUIT_GAME, R8
+JEQ R8
+
+; Check if input is a valid direction key, update R6 (Direction)
+; 'w' (up) -> R6 = 1
+LDI 119, R8         ; 'w'
+CMP R0, R8
+LDI SET_UP, R8
+JEQ R8
+
+; 'd' (right) -> R6 = 2
+LDI 100, R8         ; 'd'
+CMP R0, R8
+LDI SET_RIGHT, R8
+JEQ R8
+
+; 's' (down) -> R6 = 3
+LDI 115, R8         ; 's'
+CMP R0, R8
+LDI SET_DOWN, R8
+JEQ R8
+
+; 'a' (left) -> R6 = 4
+LDI 97, R8          ; 'a'
+CMP R0, R8
+LDI SET_LEFT, R8
+JEQ R8
+
+; If key not matched, keep current direction
+LDI UPDATE_POS, R8
+JMP R8
+
+SET_UP:
+LDI 1, R6
+LDI UPDATE_POS, R8
+JMP R8
+
+SET_RIGHT:
+LDI 2, R6
+LDI UPDATE_POS, R8
+JMP R8
+
+SET_DOWN:
+LDI 3, R6
+LDI UPDATE_POS, R8
+JMP R8
+
+SET_LEFT:
+LDI 4, R6
+
+UPDATE_POS:
+
+; --- Calculate New Head Coordinates ---
+; If dir == 1 (Up): Y = Y - 1
+LDI 1, R0
+CMP R6, R0
+LDI MOVE_UP, R0
+JEQ R0
+
+; If dir == 2 (Right): X = X + 1
+LDI 2, R0
+CMP R6, R0
+LDI MOVE_RIGHT, R0
+JEQ R0
+
+; If dir == 3 (Down): Y = Y + 1
+LDI 3, R0
+CMP R6, R0
+LDI MOVE_DOWN, R0
+JEQ R0
+
+; If dir == 4 (Left): X = X - 1
+LDI 4, R0
+CMP R6, R0
+LDI MOVE_LEFT, R0
+JEQ R0
+
+MOVE_UP:
+LDI -1, R0
+ADD R0, R4
+LDI CHECK_COLLISION, R0
+JMP R0
+
+MOVE_RIGHT:
+LDI 1, R0
+ADD R0, R3
+LDI CHECK_COLLISION, R0
+JMP R0
+
+MOVE_DOWN:
+LDI 1, R0
+ADD R0, R4
+LDI CHECK_COLLISION, R0
+JMP R0
+
+MOVE_LEFT:
+LDI -1, R0
+ADD R0, R3
+
+CHECK_COLLISION:
+; --- Check boundary collision (0 <= X < 12, 0 <= Y < 12) ---
+LDI 0, R0
+CMP R3, R0          ; X < 0
+LDI COLLISION_OVER, R0
+JGT R0
+
+LDI 12, R0
+CMP R3, R0          ; X >= 12
+LDI COLLISION_OVER, R0
+JEQ R0
+
+LDI 0, R0
+CMP R4, R0          ; Y < 0
+LDI COLLISION_OVER, R0
+JGT R0
+
+LDI 12, R0
+CMP R4, R0          ; Y >= 12
+LDI COLLISION_OVER, R0
+JEQ R0
+
+; --- Check body or food collision at new head address ---
+; Address = 1000 + Y*12 + X
+LDI 0, R7           ; R7 = Y * 12
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R3, R7          ; R7 = Y * 12 + X
+LDI 1000, R0
+ADD R0, R7          ; R7 = address of new head
+
+LD R7, R8           ; R8 = value at new head address
+LDI 0, R0
+CMP R8, R0          ; compare cell value with 0
+LDI BODY_COLLISION, R0
+JLT R0              ; value > 0 -> body collision!
+
+LDI -1, R0
+CMP R8, R0          ; compare cell value with -1 (food)
+LDI EAT_FOOD, R0
+JEQ R0              ; value == -1 -> eat food!
+
+; --- Normal movement: Decrement all snake cells, write new head ---
+LDI 1000, R0        ; loop pointer
+LDI 1144, R8        ; end pointer
+DEC_LOOP:
+LD R0, R7           ; R7 = cell value
+LDI 0, R1
+CMP R7, R1
+LDI DEC_CELL, R1
+JLT R1              ; if value > 0, decrement it
+LDI NEXT_DEC, R1
+JMP R1
+
+DEC_CELL:
+LDI -1, R1
+ADD R1, R7          ; value = value - 1
+ST R7, R0           ; write back
+
+NEXT_DEC:
+LDI 1, R1
+ADD R1, R0          ; pointer++
+CMP R0, R8
+LDI DEC_LOOP, R1
+JNE R1
+
+LDI 9001, R1        ; Restore Stdin address
+LDI END_UPDATE, R0
+JMP R0
+
+EAT_FOOD:
+; Increment snake length L
+LDI 1, R0
+ADD R0, R5
+
+; Spawn new food
+; Load the old food X/Y and shift them pseudo-randomly
+LDI 1150, R0
+LD R0, R7           ; R7 = old Food X
+LDI 1151, R0
+LD R0, R8           ; R8 = old Food Y
+
+; Food X = (Food X + 3) % 12
+LDI 3, R0
+ADD R0, R7
+LDI 11, R0
+CMP R7, R0
+LDI MOD_X, R0
+JGT R0
+LDI -12, R0
+ADD R0, R7
+MOD_X:
+
+; Food Y = (Food Y + 5) % 12
+LDI 5, R0
+ADD R0, R8
+LDI 11, R0
+CMP R8, R0
+LDI MOD_Y, R0
+JGT R0
+LDI -12, R0
+ADD R0, R8
+MOD_Y:
+
+; Save new food X and Y to memory
+LDI 1150, R0
+ST R7, R0
+LDI 1151, R0
+ST R8, R0
+
+; Write food value -1 to new food address: 1000 + Food Y * 12 + Food X
+LDI 0, R0           ; R0 = Food Y * 12
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R8, R0
+ADD R7, R0          ; R0 = Food Y * 12 + Food X
+LDI 1000, R8
+ADD R8, R0          ; R0 = target address
+LDI -1, R8
+ST R8, R0           ; Memory[food_addr] = -1
+
+END_UPDATE:
+; Write new head address with value L (R5)
+; Let's re-calculate head address: 1000 + Y*12 + X
+LDI 0, R7           ; R7 = Y * 12
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R4, R7
+ADD R3, R7          ; R7 = Y * 12 + X
+LDI 1000, R0
+ADD R0, R7          ; R7 = head address
+ST R5, R7           ; write head value L
+
+LDI GAME_LOOP, R0
+JMP R0
+
+; --- Collision Handlers ---
+COLLISION_OVER:
+BODY_COLLISION:
+LDI 10, R0          ; '\n'
+ST R0, R2
+LDI 71, R0          ; 'G'
+ST R0, R2
+LDI 65, R0          ; 'A'
+ST R0, R2
+LDI 77, R0          ; 'M'
+ST R0, R2
+LDI 69, R0          ; 'E'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 86, R0          ; 'V'
+ST R0, R2
+LDI 69, R0          ; 'E'
+ST R0, R2
+LDI 82, R0          ; 'R'
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+
+QUIT_GAME:
+HALT

@@ -1,6 +1,10 @@
 package cpu
 
-import "github.com/bohuslavsemenov/tcpu/pkg/tryte"
+import (
+	"fmt"
+
+	"github.com/bohuslavsemenov/tcpu/pkg/tryte"
+)
 
 type ALU struct{}
 
@@ -107,4 +111,75 @@ func (alu *ALU) ShiftLeft(a tryte.Tryte, n int) (tryte.Tryte, bool) {
 // ShiftRight shifts a Tryte right by n trits
 func (alu *ALU) ShiftRight(a tryte.Tryte, n int) tryte.Tryte {
 	return a.ShiftRight(n)
+}
+
+// Div performs balanced ternary division: A = Q * B + R, where -|B|/2 <= R <= |B|/2
+func (alu *ALU) Div(a, b tryte.Tryte) (tryte.Tryte, bool, error) {
+	aVal := a.ToInt()
+	bVal := b.ToInt()
+	if bVal == 0 {
+		return tryte.Tryte{}, false, fmt.Errorf("division by zero")
+	}
+
+	q := aVal / bVal
+	r := aVal % bVal
+
+	absB := bVal
+	if absB < 0 {
+		absB = -absB
+	}
+	halfB := absB / 2
+
+	if r > halfB {
+		if bVal > 0 {
+			q++
+		} else {
+			q--
+		}
+	} else if r < -halfB {
+		if bVal > 0 {
+			q--
+		} else {
+			q++
+		}
+	}
+
+	overflow := false
+	if q > 9841 || q < -9841 {
+		overflow = true
+	}
+	return tryte.FromInt(q), overflow, nil
+}
+
+// Mod performs balanced ternary modulo (remainder R from Division)
+func (alu *ALU) Mod(a, b tryte.Tryte) (tryte.Tryte, error) {
+	aVal := a.ToInt()
+	bVal := b.ToInt()
+	if bVal == 0 {
+		return tryte.Tryte{}, fmt.Errorf("modulo by zero")
+	}
+
+	r := aVal % bVal
+
+	absB := bVal
+	if absB < 0 {
+		absB = -absB
+	}
+	halfB := absB / 2
+
+	if r > halfB {
+		if bVal > 0 {
+			r -= bVal
+		} else {
+			r += bVal
+		}
+	} else if r < -halfB {
+		if bVal > 0 {
+			r += bVal
+		} else {
+			r -= bVal
+		}
+	}
+
+	return tryte.FromInt(r), nil
 }

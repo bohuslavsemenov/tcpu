@@ -31,6 +31,8 @@ const (
 	OpOr   = -9
 	OpShl  = 10
 	OpShr  = -10
+	OpDiv  = 11
+	OpMod  = -11
 )
 
 type CPU struct {
@@ -307,6 +309,21 @@ func (cpu *CPU) Step() (bool, error) {
 
 	case OpShr: // SHR: R[dst] = R[dst] >> R[src] (trits)
 		cpu.R[dstIdx] = cpu.ALU.ShiftRight(cpu.R[dstIdx], cpu.R[srcIdx].ToInt())
+
+	case OpDiv: // DIV: R[dst] = R[dst] / R[src]
+		res, overflow, err := cpu.ALU.Div(cpu.R[dstIdx], cpu.R[srcIdx])
+		if err != nil {
+			return false, fmt.Errorf("division execution error: %w", err)
+		}
+		cpu.R[dstIdx] = res
+		cpu.Carry = overflow
+
+	case OpMod: // MOD: R[dst] = R[dst] % R[src]
+		res, err := cpu.ALU.Mod(cpu.R[dstIdx], cpu.R[srcIdx])
+		if err != nil {
+			return false, fmt.Errorf("modulo execution error: %w", err)
+		}
+		cpu.R[dstIdx] = res
 
 	default:
 		return false, fmt.Errorf("unknown opcode: %d", op)

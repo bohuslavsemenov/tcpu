@@ -164,3 +164,28 @@ func TestAssemble_ShiftOperations(t *testing.T) {
 		t.Errorf("expected instruction 1 to be SHR R2, R3, got %v", bytecode[1])
 	}
 }
+
+func TestAssemble_DivModOperations(t *testing.T) {
+	source := `
+		DIV R1, R0
+		MOD R2, R3
+	`
+	bytecode, err := Assemble(source)
+	if err != nil {
+		t.Fatalf("Assemble failed: %v", err)
+	}
+
+	if len(bytecode) != 2 {
+		t.Fatalf("expected bytecode size 2, got %d", len(bytecode))
+	}
+
+	expectedDiv := makeInst(cpu.OpDiv, 1, 0)
+	if bytecode[0] != expectedDiv {
+		t.Errorf("expected instruction 0 to be DIV R1, R0, got %v", bytecode[0])
+	}
+
+	expectedMod := makeInst(cpu.OpMod, 2, 3)
+	if bytecode[1] != expectedMod {
+		t.Errorf("expected instruction 1 to be MOD R2, R3, got %v", bytecode[1])
+	}
+}

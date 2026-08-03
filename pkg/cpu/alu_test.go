@@ -279,3 +279,47 @@ func TestShift(t *testing.T) {
 		t.Errorf("ShiftRight(45, 2) = %d, expected 5", shifted2.ToInt())
 	}
 }
+
+func TestDivMod(t *testing.T) {
+	var alu ALU
+
+	// Test case 1: 5 / 3 -> Q = 2, R = -1
+	q, overflow, err := alu.Div(tryte.FromInt(5), tryte.FromInt(3))
+	if err != nil {
+		t.Fatalf("Div error: %v", err)
+	}
+	if q.ToInt() != 2 {
+		t.Errorf("expected 5 / 3 to be 2, got %d", q.ToInt())
+	}
+	if overflow {
+		t.Errorf("unexpected overflow for 5 / 3")
+	}
+
+	r, err := alu.Mod(tryte.FromInt(5), tryte.FromInt(3))
+	if err != nil {
+		t.Fatalf("Mod error: %v", err)
+	}
+	if r.ToInt() != -1 {
+		t.Errorf("expected 5 %% 3 to be -1, got %d", r.ToInt())
+	}
+
+	// Test case 2: -5 / 3 -> Q = -2, R = 1
+	q2, _, _ := alu.Div(tryte.FromInt(-5), tryte.FromInt(3))
+	if q2.ToInt() != -2 {
+		t.Errorf("expected -5 / 3 to be -2, got %d", q2.ToInt())
+	}
+	r2, _ := alu.Mod(tryte.FromInt(-5), tryte.FromInt(3))
+	if r2.ToInt() != 1 {
+		t.Errorf("expected -5 %% 3 to be 1, got %d", r2.ToInt())
+	}
+
+	// Test case 3: 5 / -3 -> Q = -2, R = -1
+	q3, _, _ := alu.Div(tryte.FromInt(5), tryte.FromInt(-3))
+	if q3.ToInt() != -2 {
+		t.Errorf("expected 5 / -3 to be -2, got %d", q3.ToInt())
+	}
+	r3, _ := alu.Mod(tryte.FromInt(5), tryte.FromInt(-3))
+	if r3.ToInt() != -1 {
+		t.Errorf("expected 5 %% -3 to be -1, got %d", r3.ToInt())
+	}
+}

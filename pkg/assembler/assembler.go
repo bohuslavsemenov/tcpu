@@ -149,7 +149,7 @@ func (a *Assembler) assembleLine(pl parsedLine, lineNum int) ([]tryte.Tryte, err
 		}
 		return []tryte.Tryte{a.encode(cpu.OpRet, 0, 0)}, nil
 
-	case "ADD", "SUB", "MUL", "CMP", "LD", "AND", "OR", "SHL", "SHR":
+	case "ADD", "SUB", "MUL", "CMP", "LD", "AND", "OR", "SHL", "SHR", "DIV", "MOD":
 		if len(pl.args) != 2 {
 			return nil, fmt.Errorf("line %d: %s expects 2 arguments, got %d", lineNum, pl.mnemonic, len(pl.args))
 		}
@@ -258,6 +258,10 @@ func (a *Assembler) opForMnemonic(mnemonic string) int {
 		return cpu.OpShl
 	case "SHR":
 		return cpu.OpShr
+	case "DIV":
+		return cpu.OpDiv
+	case "MOD":
+		return cpu.OpMod
 	default:
 		return 0
 	}

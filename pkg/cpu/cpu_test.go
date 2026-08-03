@@ -324,3 +324,40 @@ func TestCPU_ShiftOperations(t *testing.T) {
 		t.Errorf("expected R0 after SHR to be 5, got %d", cpu.R[0].ToInt())
 	}
 }
+
+func TestCPU_DivModOperations(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Initial values: R0 = 5, R1 = 3
+	cpu.R[0] = tryte.FromInt(5)
+	cpu.R[1] = tryte.FromInt(3)
+
+	// Program:
+	// DIV R1, R0 -> R0 = R0 / R1 (expected 5 / 3 = 2)
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpDiv, 1, 0))
+	// Reset R0 back to 5 for Mod
+	// MOD R1, R0 -> R0 = R0 % R1 (expected 5 % 3 = -1)
+	_ = cpu.WriteMem(tryte.FromInt(1), MakeInst(OpMod, 1, 0))
+
+	// Step 1: execute DIV
+	_, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("DIV execution error: %v", err)
+	}
+	if cpu.R[0].ToInt() != 2 {
+		t.Errorf("expected R0 after DIV to be 2, got %d", cpu.R[0].ToInt())
+	}
+
+	// Reset R0 to 5
+	cpu.R[0] = tryte.FromInt(5)
+
+	// Step 2: execute MOD
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("MOD execution error: %v", err)
+	}
+	if cpu.R[0].ToInt() != -1 {
+		t.Errorf("expected R0 after MOD to be -1, got %d", cpu.R[0].ToInt())
+	}
+}

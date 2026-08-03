@@ -1,0 +1,25 @@
+; --- Ternary Div/Mod Demo ---
+; Demonstrates balanced ternary division and modulo
+
+LDI 5, R0           ; R0 = 5
+LDI 3, R1           ; R1 = 3
+
+; division: R0 = R0 / R1 (5 / 3 = 2, remainder -1)
+DIV R1, R0
+
+; Store quotient at memory address 1000
+LDI 1000, R2
+ST R0, R2
+
+; Reload original values
+LDI 5, R0
+LDI 3, R1
+
+; modulo: R0 = R0 % R1 (5 % 3 = -1)
+MOD R1, R0
+
+; Store remainder at memory address 1001
+LDI 1001, R2
+ST R0, R2
+
+HALT

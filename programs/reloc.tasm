@@ -1,0 +1,127 @@
+; --- Ternary Memory Relocation Demo ---
+; Sets up and executes a relocated user-space program.
+; OS Kernel runs at address 0. User program is loaded at physical address 1000.
+; Stdout address = 9000, SIVR address = 9007, Base address = 9008, SysPC address = 9010
+
+LDI 9007, R2
+LDI SYSCALL_HANDLER, R1
+ST R1, R2           ; set SIVR = SYSCALL_HANDLER
+
+LDI 9000, R2        ; R2 = Stdout Address (used by handler)
+
+; 1. Load User Program into physical address 1000..1008
+; User Program:
+; LDI 10, R0     ; R0 = 10 (virtual address)
+; LDI 5, R1      ; R1 = 5 (value)
+; ST R1, R0      ; Memory[R0] = R1 (Memory[10] = 5)
+; LDI 1, R0      ; R0 = 1 (Syscall Service 1: Finish User Program)
+; SYS            ; syscall
+; HALT
+;
+; Instruction Headers:
+; 1. LDI 10, R0:
+;    Word 1 (Header): MakeInst(OpLdi, 0, 0) = 2916
+;    Word 2 (Immediate): 10
+; 2. LDI 5, R1:
+;    Word 1 (Header): MakeInst(OpLdi, 0, 1) = 2943
+;    Word 2 (Immediate): 5
+; 3. ST R1, R0:
+;    Word 1: MakeInst(-3, 0, 1) = -2160
+; 4. LDI 1, R0:
+;    Word 1: MakeInst(OpLdi, 0, 0) = 2916
+;    Word 2: 1
+; 5. SYS (OpSys=-12):
+;    Word 1: MakeInst(-12, 0, 0) = -8748
+; 6. HALT (OpHalt=0):
+;    Word 1: MakeInst(0, 0, 0) = 0
+
+LDI 1000, R0
+LDI 2916, R1        ; LDI R0 header
+ST R1, R0
+LDI 1, R3
+ADD R3, R0          ; address 1001
+LDI 10, R1          ; immediate value 10
+ST R1, R0
+
+ADD R3, R0          ; address 1002
+LDI 2943, R1        ; LDI R1 header
+ST R1, R0
+ADD R3, R0          ; address 1003
+LDI 5, R1           ; immediate value 5
+ST R1, R0
+
+ADD R3, R0          ; address 1004
+LDI -2160, R1       ; ST R1, R0 header
+ST R1, R0
+
+ADD R3, R0          ; address 1005
+LDI 2916, R1        ; LDI R0 header
+ST R1, R0
+ADD R3, R0          ; address 1006
+LDI 1, R1           ; immediate value 1
+ST R1, R0
+
+ADD R3, R0          ; address 1007
+LDI -8748, R1       ; SYS header
+ST R1, R0
+
+ADD R3, R0          ; address 1008
+LDI 0, R1           ; HALT header
+ST R1, R0
+
+; 2. Call Syscall Service 2 to set Base and start user program
+LDI 2, R0           ; Service 2: Start user program
+SYS
+
+; =====================================================================
+; KERNEL SYSTEM CALL HANDLER (Vector set via SIVR)
+; =====================================================================
+SYSCALL_HANDLER:
+; Check if R0 == 1 (Service 1: Finish User Program)
+LDI 1, R8
+CMP R0, R8
+LDI TRY_SERVICE_2, R8
+JNE R8
+
+; Verify user program wrote 5 to physical address 1010
+LDI 1010, R0
+LD R0, R1           ; R1 = Memory[1010] (should be 5)
+LDI 5, R8
+CMP R1, R8
+LDI FAILED, R8
+JNE R8
+
+; Success: Print 'Y'
+LDI 89, R1          ; 'Y'
+ST R1, R2
+LDI 10, R1          ; '\n'
+ST R1, R2
+HALT
+
+TRY_SERVICE_2:
+; Check if R0 == 2 (Service 2: Start User Program)
+LDI 2, R8
+CMP R0, R8
+LDI FAILED, R8
+JNE R8
+
+; Configure relocation Base = 1000
+LDI 9008, R0
+LDI 1000, R1
+ST R1, R0
+
+; Configure SysPC = 0 (entry point of user program)
+LDI 9010, R0
+LDI 0, R1
+ST R1, R0
+
+; Return from System Call (RTE)
+RTE
+
+FAILED:
+; Failure: Print 'N'
+LDI 78, R1          ; 'N'
+ST R1, R2
+LDI 10, R1          ; '\n'
+ST R1, R2
+HALT

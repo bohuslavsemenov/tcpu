@@ -574,3 +574,74 @@ func TestCPU_Syscalls(t *testing.T) {
 		t.Errorf("expected Carry to restore to true")
 	}
 }
+
+func TestCPU_BaseRelocation(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Set Base register to 1000
+	err := cpu.WriteMem(tryte.FromInt(AddrBase), tryte.FromInt(1000))
+	if err != nil {
+		t.Fatalf("failed to set Base: %v", err)
+	}
+
+	// 1. Test relocation in USER MODE (SYS_Active = false, IntActive = false)
+	// Write 123 to virtual address 5 (should go to physical address 1005)
+	err = cpu.WriteMem(tryte.FromInt(5), tryte.FromInt(123))
+	if err != nil {
+		t.Fatalf("WriteMem error in user mode: %v", err)
+	}
+
+	// Read virtual address 5
+	val, err := cpu.ReadMem(tryte.FromInt(5))
+	if err != nil {
+		t.Fatalf("ReadMem error in user mode: %v", err)
+	}
+	if val.ToInt() != 123 {
+		t.Errorf("expected read from virtual address 5 to be 123, got %d", val.ToInt())
+	}
+
+	// Verify relocation effect on physical addresses
+	// Temporarily bypass relocation by entering kernel mode (SYS_Active = true)
+	cpu.SYS_Active = true
+
+	// Read physical address 5 (should be 0)
+	valPhys5, err := cpu.ReadMem(tryte.FromInt(5))
+	if err != nil {
+		t.Fatalf("ReadMem physical 5 error: %v", err)
+	}
+	if valPhys5.ToInt() != 0 {
+		t.Errorf("expected physical address 5 to hold 0, got %d", valPhys5.ToInt())
+	}
+
+	// Read physical address 1005 (should hold 123)
+	valPhys1005, err := cpu.ReadMem(tryte.FromInt(1005))
+	if err != nil {
+		t.Fatalf("ReadMem physical 1005 error: %v", err)
+	}
+	if valPhys1005.ToInt() != 123 {
+		t.Errorf("expected physical address 1005 to hold 123, got %d", valPhys1005.ToInt())
+	}
+
+	// 2. Test relocation bypass in KERNEL MODE (SYS_Active = true)
+	// Write 456 to address 5 (should go directly to physical address 5)
+	err = cpu.WriteMem(tryte.FromInt(5), tryte.FromInt(456))
+	if err != nil {
+		t.Fatalf("WriteMem error in kernel mode: %v", err)
+	}
+
+	// Read address 5
+	valKernel5, err := cpu.ReadMem(tryte.FromInt(5))
+	if err != nil {
+		t.Fatalf("ReadMem error in kernel mode: %v", err)
+	}
+	if valKernel5.ToInt() != 456 {
+		t.Errorf("expected read in kernel mode from address 5 to be 456, got %d", valKernel5.ToInt())
+	}
+
+	// Verify physical address 1005 is still 123
+	valPhys1005After, _ := cpu.ReadMem(tryte.FromInt(1005))
+	if valPhys1005After.ToInt() != 123 {
+		t.Errorf("expected physical address 1005 to remain 123, got %d", valPhys1005After.ToInt())
+	}
+}

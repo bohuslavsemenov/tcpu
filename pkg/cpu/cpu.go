@@ -58,6 +58,7 @@ type CPU struct {
 	SYS_Compare tryte.Trit
 	SYS_Carry   bool
 	SYS_Active  bool
+	Base        tryte.Tryte
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -76,6 +77,9 @@ const (
 	AddrDiskBufferStart = 9006
 	AddrDiskBufferEnd   = 9086
 	AddrSIVR            = 9007
+	AddrBase            = 9008
+	AddrSPC             = 9009
+	AddrSysPC           = 9010
 )
 
 // Reset resets the CPU registers to their default state.
@@ -98,6 +102,7 @@ func (cpu *CPU) Reset() {
 	cpu.SYS_Compare = tryte.O
 	cpu.SYS_Carry = false
 	cpu.SYS_Active = false
+	cpu.Base = tryte.FromInt(0)
 }
 
 // Map a balanced ternary Tryte address (from -9841 to 9841) to 0..19682
@@ -133,6 +138,18 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 		return cpu.SIVR, nil
 	}
 
+	if addrVal == AddrBase {
+		return cpu.Base, nil
+	}
+
+	if addrVal == AddrSPC {
+		return cpu.SPC, nil
+	}
+
+	if addrVal == AddrSysPC {
+		return cpu.SYS_PC, nil
+	}
+
 	if addrVal == AddrDiskSector {
 		return cpu.DiskSector, nil
 	}
@@ -141,11 +158,21 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 		return cpu.DiskStatus, nil
 	}
 
+	// Apply base relocation for user space addresses
+	if addrVal < AddrVRAMStart && !cpu.IntActive && !cpu.SYS_Active {
+		relVal := addrVal + cpu.Base.ToInt()
+		if relVal < -9841 || relVal > 9841 {
+			return tryte.Tryte{}, fmt.Errorf("relocated read address %d out of bounds", relVal)
+		}
+		addr = tryte.FromInt(relVal)
+	}
+
 	idx, err := cpu.tryteToAddr(addr)
 	if err != nil {
 		return tryte.Tryte{}, err
 	}
-	return cpu.Memory[idx], nil
+	val := cpu.Memory[idx]
+	return val, nil
 }
 
 // WriteMem writes a Tryte to memory at the given Tryte address.
@@ -190,6 +217,21 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 		return nil
 	}
 
+	if addrVal == AddrBase {
+		cpu.Base = val
+		return nil
+	}
+
+	if addrVal == AddrSPC {
+		cpu.SPC = val
+		return nil
+	}
+
+	if addrVal == AddrSysPC {
+		cpu.SYS_PC = val
+		return nil
+	}
+
 	if addrVal == AddrDiskSector {
 		cpu.DiskSector = val
 		return nil
@@ -201,6 +243,15 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 			return fmt.Errorf("disk command execution error: %w", err)
 		}
 		return nil
+	}
+
+	// Apply base relocation for user space addresses
+	if addrVal < AddrVRAMStart && !cpu.IntActive && !cpu.SYS_Active {
+		relVal := addrVal + cpu.Base.ToInt()
+		if relVal < -9841 || relVal > 9841 {
+			return fmt.Errorf("relocated write address %d out of bounds", relVal)
+		}
+		addr = tryte.FromInt(relVal)
 	}
 
 	idx, err := cpu.tryteToAddr(addr)

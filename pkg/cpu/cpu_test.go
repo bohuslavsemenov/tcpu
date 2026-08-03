@@ -251,3 +251,40 @@ func TestCPU_Framebuffer(t *testing.T) {
 		t.Errorf("expected output to contain 'A' pixel, got %q", output)
 	}
 }
+
+func TestCPU_LogicalOperations(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Initial values: R0 = [T, O, F, T, O, F, T, O, F], R1 = [T, T, T, O, O, O, F, F, F]
+	r0Val := tryte.Tryte{tryte.T, tryte.O, tryte.F, tryte.T, tryte.O, tryte.F, tryte.T, tryte.O, tryte.F}
+	r1Val := tryte.Tryte{tryte.T, tryte.T, tryte.T, tryte.O, tryte.O, tryte.O, tryte.F, tryte.F, tryte.F}
+	cpu.R[0] = r0Val
+	cpu.R[1] = r1Val
+
+	// Program:
+	// AND R1, R0 -> R0 = R0 AND R1 (expected [T, O, F, O, O, F, F, F, F])
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpAnd, 1, 0))
+	// OR R1, R0 -> R0 = R0 OR R1 (expected [T, T, T, T, O, O, T, O, F] since R0 starts as And-result and we OR with R1)
+	_ = cpu.WriteMem(tryte.FromInt(1), MakeInst(OpOr, 1, 0))
+
+	// Step 1: execute AND
+	_, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("AND execution error: %v", err)
+	}
+	expectedAnd := tryte.Tryte{tryte.T, tryte.O, tryte.F, tryte.O, tryte.O, tryte.F, tryte.F, tryte.F, tryte.F}
+	if cpu.R[0] != expectedAnd {
+		t.Errorf("expected R0 after AND to be %v, got %v", expectedAnd, cpu.R[0])
+	}
+
+	// Step 2: execute OR
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("OR execution error: %v", err)
+	}
+	expectedOr := tryte.Tryte{tryte.T, tryte.T, tryte.T, tryte.O, tryte.O, tryte.O, tryte.F, tryte.F, tryte.F}
+	if cpu.R[0] != expectedOr {
+		t.Errorf("expected R0 after OR to be %v, got %v", expectedOr, cpu.R[0])
+	}
+}

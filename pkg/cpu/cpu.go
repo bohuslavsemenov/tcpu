@@ -27,6 +27,8 @@ const (
 	OpJgt  = -7
 	OpCall = 8
 	OpRet  = -8
+	OpAnd  = 9
+	OpOr   = -9
 )
 
 type CPU struct {
@@ -289,6 +291,12 @@ func (cpu *CPU) Step() (bool, error) {
 
 	case OpRet: // RET: return to address in R8
 		cpu.PC = cpu.R[8]
+
+	case OpAnd: // AND: R[dst] = R[dst] AND R[src]
+		cpu.R[dstIdx] = cpu.ALU.And(cpu.R[dstIdx], cpu.R[srcIdx])
+
+	case OpOr: // OR: R[dst] = R[dst] OR R[src]
+		cpu.R[dstIdx] = cpu.ALU.Or(cpu.R[dstIdx], cpu.R[srcIdx])
 
 	default:
 		return false, fmt.Errorf("unknown opcode: %d", op)

@@ -72,3 +72,29 @@ func (alu *ALU) Multiply(a, b tryte.Tryte) (tryte.Tryte, bool) {
 
 	return accumulator, overflow
 }
+
+// And performs a trit-wise minimum operation (Kleene/Lukasiewicz ternary AND)
+func (alu *ALU) And(a, b tryte.Tryte) tryte.Tryte {
+	var result tryte.Tryte
+	for i := range tryte.WordSize {
+		if a[i] < b[i] {
+			result[i] = a[i]
+		} else {
+			result[i] = b[i]
+		}
+	}
+	return result
+}
+
+// Or performs a trit-wise maximum operation (Kleene/Lukasiewicz ternary OR)
+func (alu *ALU) Or(a, b tryte.Tryte) tryte.Tryte {
+	var result tryte.Tryte
+	for i := range tryte.WordSize {
+		if a[i] > b[i] {
+			result[i] = a[i]
+		} else {
+			result[i] = b[i]
+		}
+	}
+	return result
+}

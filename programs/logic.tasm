@@ -1,0 +1,205 @@
+; --- Ternary Logic Demo (AND & OR) ---
+; Computes and prints truth tables for balanced ternary Kleene logic
+; Stdout address = 9000
+
+LDI 9000, R2        ; R2 = Stdout Address
+
+; =====================================================================
+; PRINT AND TRUTH TABLE
+; =====================================================================
+; Print "AND:\n"
+LDI 65, R0          ; 'A'
+ST R0, R2
+LDI 78, R0          ; 'N'
+ST R0, R2
+LDI 68, R0          ; 'D'
+ST R0, R2
+LDI 58, R0          ; ':'
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+
+; Outer Loop A: -1 to 1
+LDI -1, R3          ; R3 = A
+OUTER_AND:
+
+; Inner Loop B: -1 to 1
+LDI -1, R4          ; R4 = B
+INNER_AND:
+
+; Print A
+LDI 0, R5
+ADD R3, R5          ; R5 = value to print
+LDI PRINT_TRIT, R0
+CALL R0
+
+; Print " & "
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 38, R0          ; '&'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+; Print B
+LDI 0, R5
+ADD R4, R5          ; R5 = value to print
+LDI PRINT_TRIT, R0
+CALL R0
+
+; Print " = "
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 61, R0          ; '='
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+; Compute A AND B
+LDI 0, R5
+ADD R3, R5          ; R5 = A
+LDI 0, R6
+ADD R4, R6          ; R6 = B
+AND R6, R5          ; R5 = A AND R6 (min)
+
+; Print Result
+LDI PRINT_TRIT, R0
+CALL R0
+
+; Print newline
+LDI 10, R0
+ST R0, R2
+
+; Increment Inner Loop B
+LDI 1, R0
+ADD R0, R4
+LDI 2, R0
+CMP R4, R0          ; compare B with 2
+LDI INNER_AND, R0
+JGT R0              ; if B <= 1, loop
+
+; Increment Outer Loop A
+LDI 1, R0
+ADD R0, R3
+LDI 2, R0
+CMP R3, R0          ; compare A with 2
+LDI OUTER_AND, R0
+JGT R0              ; if A <= 1, loop
+
+; Print blank line
+LDI 10, R0
+ST R0, R2
+
+; =====================================================================
+; PRINT OR TRUTH TABLE
+; =====================================================================
+; Print "OR:\n"
+LDI 79, R0          ; 'O'
+ST R0, R2
+LDI 82, R0          ; 'R'
+ST R0, R2
+LDI 58, R0          ; ':'
+ST R0, R2
+LDI 10, R0          ; '\n'
+ST R0, R2
+
+; Outer Loop A: -1 to 1
+LDI -1, R3          ; R3 = A
+OUTER_OR:
+
+; Inner Loop B: -1 to 1
+LDI -1, R4          ; R4 = B
+INNER_OR:
+
+; Print A
+LDI 0, R5
+ADD R3, R5          ; R5 = value to print
+LDI PRINT_TRIT, R0
+CALL R0
+
+; Print " | "
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 124, R0         ; '|'
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+; Print B
+LDI 0, R5
+ADD R4, R5          ; R5 = value to print
+LDI PRINT_TRIT, R0
+CALL R0
+
+; Print " = "
+LDI 32, R0          ; ' '
+ST R0, R2
+LDI 61, R0          ; '='
+ST R0, R2
+LDI 32, R0          ; ' '
+ST R0, R2
+
+; Compute A OR B
+LDI 0, R5
+ADD R3, R5          ; R5 = A
+LDI 0, R6
+ADD R4, R6          ; R6 = B
+OR R6, R5           ; R5 = A OR R6 (max)
+
+; Print Result
+LDI PRINT_TRIT, R0
+CALL R0
+
+; Print newline
+LDI 10, R0
+ST R0, R2
+
+; Increment Inner Loop B
+LDI 1, R0
+ADD R0, R4
+LDI 2, R0
+CMP R4, R0          ; compare B with 2
+LDI INNER_OR, R0
+JGT R0              ; if B <= 1, loop
+
+; Increment Outer Loop A
+LDI 1, R0
+ADD R0, R3
+LDI 2, R0
+CMP R3, R0          ; compare A with 2
+LDI OUTER_OR, R0
+JGT R0              ; if A <= 1, loop
+
+HALT
+
+; =====================================================================
+; SUBROUTINES
+; =====================================================================
+
+; PRINT_TRIT Subroutine
+; Input: R5 = Trit value (-1, 0, or 1)
+PRINT_TRIT:
+LDI -1, R0
+CMP R5, R0
+LDI IS_F, R0
+JEQ R0
+
+LDI 0, R0
+CMP R5, R0
+LDI IS_O, R0
+JEQ R0
+
+; Else, it is 1 (T)
+LDI 84, R0          ; 'T'
+ST R0, R2
+RET
+
+IS_F:
+LDI 70, R0          ; 'F'
+ST R0, R2
+RET
+
+IS_O:
+LDI 79, R0          ; 'O'
+ST R0, R2
+RET

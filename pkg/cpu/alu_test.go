@@ -232,3 +232,29 @@ func TestMultiply(t *testing.T) {
 		})
 	}
 }
+
+func TestAnd(t *testing.T) {
+	var alu ALU
+
+	a := tryte.Tryte{tryte.T, tryte.O, tryte.F, tryte.T, tryte.O, tryte.F, tryte.T, tryte.O, tryte.F}
+	b := tryte.Tryte{tryte.T, tryte.T, tryte.T, tryte.O, tryte.O, tryte.O, tryte.F, tryte.F, tryte.F}
+	expected := tryte.Tryte{tryte.T, tryte.O, tryte.F, tryte.O, tryte.O, tryte.F, tryte.F, tryte.F, tryte.F}
+
+	got := alu.And(a, b)
+	if got != expected {
+		t.Errorf("And(%v, %v) = %v, expected %v", a, b, got, expected)
+	}
+}
+
+func TestOr(t *testing.T) {
+	var alu ALU
+
+	a := tryte.Tryte{tryte.T, tryte.O, tryte.F, tryte.T, tryte.O, tryte.F, tryte.T, tryte.O, tryte.F}
+	b := tryte.Tryte{tryte.T, tryte.T, tryte.T, tryte.O, tryte.O, tryte.O, tryte.F, tryte.F, tryte.F}
+	expected := tryte.Tryte{tryte.T, tryte.T, tryte.T, tryte.T, tryte.O, tryte.O, tryte.T, tryte.O, tryte.F}
+
+	got := alu.Or(a, b)
+	if got != expected {
+		t.Errorf("Or(%v, %v) = %v, expected %v", a, b, got, expected)
+	}
+}

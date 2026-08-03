@@ -114,3 +114,28 @@ func TestAssemble_Subroutines(t *testing.T) {
 		t.Errorf("expected instruction 1 to be RET, got %v", bytecode[1])
 	}
 }
+
+func TestAssemble_LogicalOperations(t *testing.T) {
+	source := `
+		AND R1, R0
+		OR R2, R3
+	`
+	bytecode, err := Assemble(source)
+	if err != nil {
+		t.Fatalf("Assemble failed: %v", err)
+	}
+
+	if len(bytecode) != 2 {
+		t.Fatalf("expected bytecode size 2, got %d", len(bytecode))
+	}
+
+	expectedAnd := makeInst(cpu.OpAnd, 1, 0)
+	if bytecode[0] != expectedAnd {
+		t.Errorf("expected instruction 0 to be AND R1, R0, got %v", bytecode[0])
+	}
+
+	expectedOr := makeInst(cpu.OpOr, 2, 3)
+	if bytecode[1] != expectedOr {
+		t.Errorf("expected instruction 1 to be OR R2, R3, got %v", bytecode[1])
+	}
+}

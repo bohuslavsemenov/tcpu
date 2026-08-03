@@ -645,3 +645,49 @@ func TestCPU_BaseRelocation(t *testing.T) {
 		t.Errorf("expected physical address 1005 to remain 123, got %d", valPhys1005After.ToInt())
 	}
 }
+
+func TestCPU_KeyboardInterrupts(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Set IVR to 200
+	_ = cpu.WriteMem(tryte.FromInt(AddrIVR), tryte.FromInt(200))
+
+	// Queue keyboard character 65 ('A')
+	cpu.QueueKeyboardInput(65)
+
+	// Step CPU, which should detect the keyboard input and trigger interrupt
+	_, err := cpu.Step()
+	if err != nil {
+		t.Fatalf("Step error: %v", err)
+	}
+
+	// Verify interrupt states
+	if !cpu.IntActive {
+		t.Errorf("expected IntActive to be true")
+	}
+	if cpu.IntStatus.ToInt() != 2 {
+		t.Errorf("expected IntStatus to be 2 (Keyboard), got %d", cpu.IntStatus.ToInt())
+	}
+	if cpu.LastKey != 65 {
+		t.Errorf("expected LastKey to be 65, got %d", cpu.LastKey)
+	}
+	if cpu.PC.ToInt() != 201 {
+		t.Errorf("expected PC to be 201 (after executing HALT at 200), got %d", cpu.PC.ToInt())
+	}
+	if cpu.SPC.ToInt() != 0 {
+		t.Errorf("expected SPC to save PC=0, got %d", cpu.SPC.ToInt())
+	}
+
+	// Read Stdin address 9001 (should return 65 and clear LastKey)
+	val, err := cpu.ReadMem(tryte.FromInt(AddrStdin))
+	if err != nil {
+		t.Fatalf("failed to read from AddrStdin: %v", err)
+	}
+	if val.ToInt() != 65 {
+		t.Errorf("expected character 65, got %d", val.ToInt())
+	}
+	if cpu.LastKey != 0 {
+		t.Errorf("expected LastKey to be cleared to 0, got %d", cpu.LastKey)
+	}
+}

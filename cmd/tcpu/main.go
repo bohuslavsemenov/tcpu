@@ -42,58 +42,7 @@ func fatalf(format string, v ...interface{}) {
 	log.Fatalf(format, v...)
 }
 
-type NonBlockingConsoleReader struct {
-	stdinChan chan byte
-}
 
-func NewNonBlockingConsoleReader() *NonBlockingConsoleReader {
-	r := &NonBlockingConsoleReader{
-		stdinChan: make(chan byte, 100),
-	}
-	go func() {
-		var buf [1]byte
-		for {
-			n, err := os.Stdin.Read(buf[:])
-			if err != nil || n == 0 {
-				close(r.stdinChan)
-				break
-			}
-			r.stdinChan <- buf[0]
-		}
-	}()
-	return r
-}
-
-func (r *NonBlockingConsoleReader) Read(p []byte) (int, error) {
-	// Sleep for 150ms game tick
-	time.Sleep(150 * time.Millisecond)
-
-	// Read last key from channel
-	var lastKey byte = 0
-	hasKeys := false
-	for {
-		select {
-		case b, ok := <-r.stdinChan:
-			if !ok {
-				if hasKeys {
-					p[0] = lastKey
-					return 1, nil
-				}
-				p[0] = 0
-				return 1, nil
-			}
-			lastKey = b
-			hasKeys = true
-		default:
-			if hasKeys {
-				p[0] = lastKey
-				return 1, nil
-			}
-			p[0] = 0
-			return 1, nil
-		}
-	}
-}
 
 func main() {
 	debugFlag := flag.Bool("d", false, "enable step-by-step CPU debug logging to stderr")
@@ -115,13 +64,11 @@ func main() {
 	tcpu := &cpu.CPU{}
 	tcpu.Reset()
 
-	// Auto-enable raw mode for snake, or if raw flag is specified
-	useRaw := *rawFlag || strings.Contains(strings.ToLower(filePath), "snake")
-
-	if useRaw {
+	if *rawFlag {
 		makeRaw()
 		defer restore()
-		tcpu.Stdin = NewNonBlockingConsoleReader()
+		tcpu.Stdin = os.Stdin
+		tcpu.StartKeyboardListener()
 	} else {
 		tcpu.Stdin = os.Stdin
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/bohuslavsemenov/tcpu/pkg/tryte"
 )
@@ -57,8 +58,12 @@ type CPU struct {
 	SYS_PC      tryte.Tryte
 	SYS_Compare tryte.Trit
 	SYS_Carry   bool
-	SYS_Active  bool
-	Base        tryte.Tryte
+	SYS_Active             bool
+	Base                   tryte.Tryte
+	IntStatus              tryte.Tryte
+	LastKey                byte
+	InputQueue             chan byte
+	KeyboardListenerActive bool
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -80,6 +85,7 @@ const (
 	AddrBase            = 9008
 	AddrSPC             = 9009
 	AddrSysPC           = 9010
+	AddrIntStatus       = 9011
 )
 
 // Reset resets the CPU registers to their default state.
@@ -103,6 +109,17 @@ func (cpu *CPU) Reset() {
 	cpu.SYS_Carry = false
 	cpu.SYS_Active = false
 	cpu.Base = tryte.FromInt(0)
+	cpu.IntStatus = tryte.FromInt(0)
+	cpu.LastKey = 0
+	cpu.KeyboardListenerActive = false
+	if cpu.InputQueue == nil {
+		cpu.InputQueue = make(chan byte, 256)
+	} else {
+		// Drain queue
+		for len(cpu.InputQueue) > 0 {
+			<-cpu.InputQueue
+		}
+	}
 }
 
 // Map a balanced ternary Tryte address (from -9841 to 9841) to 0..19682
@@ -118,6 +135,22 @@ func (cpu *CPU) tryteToAddr(t tryte.Tryte) (int, error) {
 func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 	addrVal := addr.ToInt()
 	if addrVal == AddrStdin {
+		if cpu.LastKey != 0 {
+			val := tryte.FromInt(int(cpu.LastKey))
+			cpu.LastKey = 0
+			return val, nil
+		}
+		select {
+		case char := <-cpu.InputQueue:
+			return tryte.FromInt(int(char)), nil
+		default:
+		}
+		if cpu.KeyboardListenerActive {
+			if cpu.IVR.ToInt() == 0 {
+				time.Sleep(100 * time.Millisecond)
+			}
+			return tryte.FromInt(0), nil
+		}
 		reader := cpu.Stdin
 		if reader == nil {
 			reader = os.Stdin
@@ -148,6 +181,10 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 
 	if addrVal == AddrSysPC {
 		return cpu.SYS_PC, nil
+	}
+
+	if addrVal == AddrIntStatus {
+		return cpu.IntStatus, nil
 	}
 
 	if addrVal == AddrDiskSector {
@@ -219,6 +256,11 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 
 	if addrVal == AddrBase {
 		cpu.Base = val
+		return nil
+	}
+
+	if addrVal == AddrIntStatus {
+		cpu.IntStatus = val
 		return nil
 	}
 
@@ -322,6 +364,21 @@ func (cpu *CPU) getRegIndex(t tryte.Tryte) int {
 // Step executes a single instruction cycle (Fetch, Decode, Execute).
 // Returns (keepRunning, error).
 func (cpu *CPU) Step() (bool, error) {
+	// Check for pending keyboard interrupts
+	if !cpu.IntActive && cpu.IVR.ToInt() != 0 {
+		select {
+		case char := <-cpu.InputQueue:
+			cpu.IntActive = true
+			cpu.IntStatus = tryte.FromInt(2) // Keyboard Interrupt Status = 2
+			cpu.LastKey = char
+			cpu.SPC = cpu.PC
+			cpu.SCompare = cpu.Compare
+			cpu.SCarry = cpu.Carry
+			cpu.PC = cpu.IVR
+		default:
+		}
+	}
+
 	// 1. Fetch
 	inst, err := cpu.ReadMem(cpu.PC)
 	if err != nil {
@@ -480,11 +537,47 @@ func (cpu *CPU) Step() (bool, error) {
 // TriggerInterrupt saves CPU state and jumps PC to the interrupt vector (IVR)
 func (cpu *CPU) TriggerInterrupt() {
 	if cpu.IVR.ToInt() != 0 && !cpu.IntActive {
+		cpu.IntStatus = tryte.FromInt(1) // Timer Interrupt Status = 1
 		cpu.IntActive = true
 		cpu.SPC = cpu.PC
 		cpu.SCompare = cpu.Compare
 		cpu.SCarry = cpu.Carry
 		cpu.PC = cpu.IVR
+	}
+}
+
+// StartKeyboardListener begins monitoring stdin for asynchronous keyboard interrupts
+func (cpu *CPU) StartKeyboardListener() {
+	cpu.KeyboardListenerActive = true
+	if cpu.InputQueue == nil {
+		cpu.InputQueue = make(chan byte, 256)
+	}
+	go func() {
+		var buf [1]byte
+		for {
+			reader := cpu.Stdin
+			if reader == nil {
+				reader = os.Stdin
+			}
+			n, err := reader.Read(buf[:])
+			if err != nil || n == 0 {
+				break
+			}
+			cpu.QueueKeyboardInput(buf[0])
+		}
+	}()
+}
+
+// QueueKeyboardInput adds a character to the queue
+func (cpu *CPU) QueueKeyboardInput(char byte) {
+	if cpu.InputQueue == nil {
+		cpu.InputQueue = make(chan byte, 256)
+	}
+	select {
+	case cpu.InputQueue <- char:
+		// Succeeded
+	default:
+		// Queue full, drop
 	}
 }
 

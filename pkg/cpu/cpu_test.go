@@ -220,3 +220,34 @@ func TestCPU_Subroutines(t *testing.T) {
 		t.Errorf("expected CPU to halt, but it is still running")
 	}
 }
+
+func TestCPU_Framebuffer(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	var stdoutBuf bytes.Buffer
+	cpu.Stdout = &stdoutBuf
+
+	// Write 'A' (65) to row 0, col 0 (address 2000)
+	err := cpu.WriteMem(tryte.FromInt(AddrVRAMStart), tryte.FromInt(65))
+	if err != nil {
+		t.Fatalf("WriteMem VRAM error: %v", err)
+	}
+
+	// Trigger refresh
+	err = cpu.WriteMem(tryte.FromInt(AddrVideoRefresh), tryte.FromInt(1))
+	if err != nil {
+		t.Fatalf("WriteMem video refresh error: %v", err)
+	}
+
+	output := stdoutBuf.String()
+
+	// Verify output has ANSI clear and border
+	if !strings.Contains(output, "# # # # # # # # # # # # # #") {
+		t.Errorf("expected output to contain border, got %q", output)
+	}
+	// Verify it contains the 'A' character
+	if !strings.Contains(output, "A") {
+		t.Errorf("expected output to contain 'A' pixel, got %q", output)
+	}
+}

@@ -43,8 +43,11 @@ type CPU struct {
 
 // Memory-mapped I/O addresses
 const (
-	AddrStdout = 9000
-	AddrStdin  = 9001
+	AddrStdout       = 9000
+	AddrStdin        = 9001
+	AddrVRAMStart    = 2000
+	AddrVRAMEnd      = 2143
+	AddrVideoRefresh = 9002
 )
 
 // Reset resets the CPU registers to their default state.
@@ -114,11 +117,71 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 		return nil
 	}
 
+	if addrVal == AddrVideoRefresh {
+		err := cpu.renderFramebuffer()
+		if err != nil {
+			return fmt.Errorf("video refresh error: %w", err)
+		}
+		return nil
+	}
+
 	idx, err := cpu.tryteToAddr(addr)
 	if err != nil {
 		return err
 	}
 	cpu.Memory[idx] = val
+	return nil
+}
+
+func (cpu *CPU) renderFramebuffer() error {
+	writer := cpu.Stdout
+	if writer == nil {
+		writer = os.Stdout
+	}
+
+	// 1. Clear Screen / Home Cursor
+	// Send ANSI escape sequences: ESC [2J (clear screen) and ESC [H (home cursor)
+	_, err := writer.Write([]byte{27, 91, 50, 74, 27, 91, 72})
+	if err != nil {
+		return fmt.Errorf("failed to write display controls to stdout: %w", err)
+	}
+
+	// 2. Draw Top Border (12 grid cols + 2 borders = 14 columns of '# # ')
+	_, err = writer.Write([]byte("# # # # # # # # # # # # # # \r\n"))
+	if err != nil {
+		return fmt.Errorf("failed to write display border: %w", err)
+	}
+
+	// 3. Draw Grid
+	for y := 0; y < 12; y++ {
+		row := make([]byte, 0, 30)
+		row = append(row, '#', ' ') // Left border
+		for x := 0; x < 12; x++ {
+			vramAddr := tryte.FromInt(AddrVRAMStart + y*12 + x)
+			cellValTryte, err := cpu.ReadMem(vramAddr)
+			if err != nil {
+				return err
+			}
+			cellVal := cellValTryte.ToInt()
+			if cellVal == 0 {
+				row = append(row, '.', ' ') // Empty cell
+			} else {
+				row = append(row, byte(cellVal), ' ') // ASCII pixel character
+			}
+		}
+		row = append(row, '#', '\r', '\n') // Right border and newline
+		_, err = writer.Write(row)
+		if err != nil {
+			return fmt.Errorf("failed to write display row: %w", err)
+		}
+	}
+
+	// 4. Draw Bottom Border
+	_, err = writer.Write([]byte("# # # # # # # # # # # # # # \r\n"))
+	if err != nil {
+		return fmt.Errorf("failed to write display border: %w", err)
+	}
+
 	return nil
 }
 

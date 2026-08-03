@@ -189,3 +189,22 @@ func TestAssemble_DivModOperations(t *testing.T) {
 		t.Errorf("expected instruction 1 to be MOD R2, R3, got %v", bytecode[1])
 	}
 }
+
+func TestAssemble_RTE(t *testing.T) {
+	source := `
+		RTE
+	`
+	bytecode, err := Assemble(source)
+	if err != nil {
+		t.Fatalf("Assemble failed: %v", err)
+	}
+
+	if len(bytecode) != 1 {
+		t.Fatalf("expected bytecode size 1, got %d", len(bytecode))
+	}
+
+	expectedRte := makeInst(cpu.OpRte, 0, 0)
+	if bytecode[0] != expectedRte {
+		t.Errorf("expected instruction 0 to be RTE, got %v", bytecode[0])
+	}
+}

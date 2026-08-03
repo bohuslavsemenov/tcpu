@@ -33,15 +33,21 @@ const (
 	OpShr  = -10
 	OpDiv  = 11
 	OpMod  = -11
+	OpRte  = 12
 )
 
 type CPU struct {
-	R       [9]tryte.Tryte
-	PC      tryte.Tryte
-	Compare tryte.Trit
-	Carry   bool
-	ALU     ALU
-	Memory  [MemorySize]tryte.Tryte
+	R         [9]tryte.Tryte
+	PC        tryte.Tryte
+	Compare   tryte.Trit
+	Carry     bool
+	ALU       ALU
+	Memory    [MemorySize]tryte.Tryte
+	SPC       tryte.Tryte
+	SCompare  tryte.Trit
+	SCarry    bool
+	IVR       tryte.Tryte
+	IntActive bool
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -54,6 +60,7 @@ const (
 	AddrVRAMStart    = 2000
 	AddrVRAMEnd      = 2143
 	AddrVideoRefresh = 9002
+	AddrIVR          = 9003
 )
 
 // Reset resets the CPU registers to their default state.
@@ -64,6 +71,11 @@ func (cpu *CPU) Reset() {
 	cpu.PC = tryte.FromInt(0)
 	cpu.Compare = tryte.O
 	cpu.Carry = false
+	cpu.SPC = tryte.FromInt(0)
+	cpu.SCompare = tryte.O
+	cpu.SCarry = false
+	cpu.IVR = tryte.FromInt(0)
+	cpu.IntActive = false
 }
 
 // Map a balanced ternary Tryte address (from -9841 to 9841) to 0..19682
@@ -76,7 +88,6 @@ func (cpu *CPU) tryteToAddr(t tryte.Tryte) (int, error) {
 	return addr, nil
 }
 
-// ReadMem reads a Tryte from memory at the given Tryte address.
 func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 	addrVal := addr.ToInt()
 	if addrVal == AddrStdin {
@@ -90,6 +101,10 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 			return tryte.Tryte{}, fmt.Errorf("failed to read from stdin: %w", err)
 		}
 		return tryte.FromInt(int(buf[0])), nil
+	}
+
+	if addrVal == AddrIVR {
+		return cpu.IVR, nil
 	}
 
 	idx, err := cpu.tryteToAddr(addr)
@@ -128,6 +143,11 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 		if err != nil {
 			return fmt.Errorf("video refresh error: %w", err)
 		}
+		return nil
+	}
+
+	if addrVal == AddrIVR {
+		cpu.IVR = val
 		return nil
 	}
 
@@ -325,9 +345,26 @@ func (cpu *CPU) Step() (bool, error) {
 		}
 		cpu.R[dstIdx] = res
 
+	case OpRte: // RTE: return from exception
+		cpu.PC = cpu.SPC
+		cpu.Compare = cpu.SCompare
+		cpu.Carry = cpu.SCarry
+		cpu.IntActive = false
+
 	default:
 		return false, fmt.Errorf("unknown opcode: %d", op)
 	}
 
 	return true, nil
+}
+
+// TriggerInterrupt saves CPU state and jumps PC to the interrupt vector (IVR)
+func (cpu *CPU) TriggerInterrupt() {
+	if cpu.IVR.ToInt() != 0 && !cpu.IntActive {
+		cpu.IntActive = true
+		cpu.SPC = cpu.PC
+		cpu.SCompare = cpu.Compare
+		cpu.SCarry = cpu.Carry
+		cpu.PC = cpu.IVR
+	}
 }

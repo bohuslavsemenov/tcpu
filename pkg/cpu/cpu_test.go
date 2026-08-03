@@ -361,3 +361,72 @@ func TestCPU_DivModOperations(t *testing.T) {
 		t.Errorf("expected R0 after MOD to be -1, got %d", cpu.R[0].ToInt())
 	}
 }
+
+func TestCPU_InterruptsAndRTE(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Set Interrupt Vector Register (IVR) to 100
+	err := cpu.WriteMem(tryte.FromInt(AddrIVR), tryte.FromInt(100))
+	if err != nil {
+		t.Fatalf("failed to set IVR: %v", err)
+	}
+
+	// Address 0: NOP/HALT (will trigger interrupt at PC=1)
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpHalt, 0, 0))
+
+	// Address 100: RTE (return from interrupt)
+	_ = cpu.WriteMem(tryte.FromInt(100), MakeInst(OpRte, 0, 0))
+
+	// Step 1: execute address 0, PC becomes 1
+	_, _ = cpu.Step()
+	if cpu.PC.ToInt() != 1 {
+		t.Fatalf("expected PC to be 1, got %d", cpu.PC.ToInt())
+	}
+
+	// Set a mock state to verify restoration
+	cpu.Compare = tryte.T
+	cpu.Carry = true
+
+	// Trigger the interrupt!
+	cpu.TriggerInterrupt()
+
+	if !cpu.IntActive {
+		t.Errorf("expected IntActive to be true")
+	}
+	if cpu.PC.ToInt() != 100 {
+		t.Errorf("expected PC to jump to IVR 100, got %d", cpu.PC.ToInt())
+	}
+	if cpu.SPC.ToInt() != 1 {
+		t.Errorf("expected SPC to save PC=1, got %d", cpu.SPC.ToInt())
+	}
+	if cpu.SCompare != tryte.T {
+		t.Errorf("expected SCompare to save Compare=T")
+	}
+	if !cpu.SCarry {
+		t.Errorf("expected SCarry to save Carry=true")
+	}
+
+	// Clear Compare/Carry in interrupt handler to verify they get restored by RTE
+	cpu.Compare = tryte.O
+	cpu.Carry = false
+
+	// Step 2: execute RTE at PC=100
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("RTE execution error: %v", err)
+	}
+
+	if cpu.PC.ToInt() != 1 {
+		t.Errorf("expected PC to return to 1, got %d", cpu.PC.ToInt())
+	}
+	if cpu.Compare != tryte.T {
+		t.Errorf("expected Compare to restore to T, got %v", cpu.Compare)
+	}
+	if !cpu.Carry {
+		t.Errorf("expected Carry to restore to true")
+	}
+	if cpu.IntActive {
+		t.Errorf("expected IntActive to reset to false")
+	}
+}

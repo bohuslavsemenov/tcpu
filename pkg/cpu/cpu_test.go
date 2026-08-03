@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -428,5 +429,54 @@ func TestCPU_InterruptsAndRTE(t *testing.T) {
 	}
 	if cpu.IntActive {
 		t.Errorf("expected IntActive to reset to false")
+	}
+}
+
+func TestCPU_VirtualDisk(t *testing.T) {
+	diskPath := "test_disk.img"
+	defer os.Remove(diskPath)
+
+	cpu := &CPU{
+		DiskPath: diskPath,
+	}
+	cpu.Reset()
+
+	// Write value 123 to index 0 of the disk buffer
+	err := cpu.WriteMem(tryte.FromInt(AddrDiskBufferStart), tryte.FromInt(123))
+	if err != nil {
+		t.Fatalf("failed to write to disk buffer: %v", err)
+	}
+
+	// Set sector number to 5
+	err = cpu.WriteMem(tryte.FromInt(AddrDiskSector), tryte.FromInt(5))
+	if err != nil {
+		t.Fatalf("failed to set sector: %v", err)
+	}
+
+	// Trigger Write command (-1)
+	err = cpu.WriteMem(tryte.FromInt(AddrDiskCommand), tryte.FromInt(-1))
+	if err != nil {
+		t.Fatalf("failed to write command: %v", err)
+	}
+
+	// Clear the buffer in memory
+	err = cpu.WriteMem(tryte.FromInt(AddrDiskBufferStart), tryte.FromInt(0))
+	if err != nil {
+		t.Fatalf("failed to clear disk buffer: %v", err)
+	}
+
+	// Trigger Read command (1)
+	err = cpu.WriteMem(tryte.FromInt(AddrDiskCommand), tryte.FromInt(1))
+	if err != nil {
+		t.Fatalf("failed to read command: %v", err)
+	}
+
+	// Check that the value 123 was read back
+	val, err := cpu.ReadMem(tryte.FromInt(AddrDiskBufferStart))
+	if err != nil {
+		t.Fatalf("failed to read memory: %v", err)
+	}
+	if val.ToInt() != 123 {
+		t.Errorf("expected 123, got %d", val.ToInt())
 	}
 }

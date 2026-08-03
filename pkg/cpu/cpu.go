@@ -1,6 +1,7 @@
 package cpu
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -42,12 +43,15 @@ type CPU struct {
 	Compare   tryte.Trit
 	Carry     bool
 	ALU       ALU
-	Memory    [MemorySize]tryte.Tryte
-	SPC       tryte.Tryte
-	SCompare  tryte.Trit
-	SCarry    bool
-	IVR       tryte.Tryte
-	IntActive bool
+	Memory     [MemorySize]tryte.Tryte
+	SPC        tryte.Tryte
+	SCompare   tryte.Trit
+	SCarry     bool
+	IVR        tryte.Tryte
+	IntActive  bool
+	DiskPath   string
+	DiskSector tryte.Tryte
+	DiskStatus tryte.Tryte
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -55,12 +59,16 @@ type CPU struct {
 
 // Memory-mapped I/O addresses
 const (
-	AddrStdout       = 9000
-	AddrStdin        = 9001
-	AddrVRAMStart    = 2000
-	AddrVRAMEnd      = 2143
-	AddrVideoRefresh = 9002
-	AddrIVR          = 9003
+	AddrStdout          = 9000
+	AddrStdin           = 9001
+	AddrVRAMStart       = 2000
+	AddrVRAMEnd         = 2143
+	AddrVideoRefresh    = 9002
+	AddrIVR             = 9003
+	AddrDiskSector      = 9004
+	AddrDiskCommand     = 9005
+	AddrDiskBufferStart = 9006
+	AddrDiskBufferEnd   = 9086
 )
 
 // Reset resets the CPU registers to their default state.
@@ -76,6 +84,8 @@ func (cpu *CPU) Reset() {
 	cpu.SCarry = false
 	cpu.IVR = tryte.FromInt(0)
 	cpu.IntActive = false
+	cpu.DiskSector = tryte.FromInt(0)
+	cpu.DiskStatus = tryte.FromInt(0)
 }
 
 // Map a balanced ternary Tryte address (from -9841 to 9841) to 0..19682
@@ -105,6 +115,14 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 
 	if addrVal == AddrIVR {
 		return cpu.IVR, nil
+	}
+
+	if addrVal == AddrDiskSector {
+		return cpu.DiskSector, nil
+	}
+
+	if addrVal == AddrDiskCommand {
+		return cpu.DiskStatus, nil
 	}
 
 	idx, err := cpu.tryteToAddr(addr)
@@ -148,6 +166,19 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 
 	if addrVal == AddrIVR {
 		cpu.IVR = val
+		return nil
+	}
+
+	if addrVal == AddrDiskSector {
+		cpu.DiskSector = val
+		return nil
+	}
+
+	if addrVal == AddrDiskCommand {
+		err := cpu.executeDiskCommand(val.ToInt())
+		if err != nil {
+			return fmt.Errorf("disk command execution error: %w", err)
+		}
 		return nil
 	}
 
@@ -367,4 +398,76 @@ func (cpu *CPU) TriggerInterrupt() {
 		cpu.SCarry = cpu.Carry
 		cpu.PC = cpu.IVR
 	}
+}
+
+// Disk command values
+const (
+	DiskCmdWrite = -1
+	DiskCmdRead  = 1
+)
+
+// executeDiskCommand performs reads/writes from/to the virtual disk file
+func (cpu *CPU) executeDiskCommand(cmd int) error {
+	if cpu.DiskPath == "" {
+		cpu.DiskPath = "disk.img"
+	}
+
+	// Open or create the file
+	f, err := os.OpenFile(cpu.DiskPath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		cpu.DiskStatus = tryte.FromInt(-1)
+		return err
+	}
+	defer f.Close()
+
+	sectorNum := cpu.DiskSector.ToInt()
+	if sectorNum < 0 {
+		cpu.DiskStatus = tryte.FromInt(-1)
+		return fmt.Errorf("invalid negative sector number: %d", sectorNum)
+	}
+
+	offset := int64(sectorNum) * 81 * 2
+	_, err = f.Seek(offset, 0)
+	if err != nil {
+		cpu.DiskStatus = tryte.FromInt(-1)
+		return err
+	}
+
+	if cmd == DiskCmdRead { // Read
+		buf := make([]byte, 162)
+		_, err := io.ReadFull(f, buf)
+		if err != nil {
+			// If EOF, just fill buffer with zeros
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				for i := 0; i < 81; i++ {
+					idx, _ := cpu.tryteToAddr(tryte.FromInt(AddrDiskBufferStart + i))
+					cpu.Memory[idx] = tryte.FromInt(0)
+				}
+				cpu.DiskStatus = tryte.FromInt(0)
+				return nil
+			}
+			cpu.DiskStatus = tryte.FromInt(-1)
+			return err
+		}
+		for i := 0; i < 81; i++ {
+			val := int16(binary.BigEndian.Uint16(buf[i*2 : i*2+2]))
+			idx, _ := cpu.tryteToAddr(tryte.FromInt(AddrDiskBufferStart + i))
+			cpu.Memory[idx] = tryte.FromInt(int(val))
+		}
+		cpu.DiskStatus = tryte.FromInt(0)
+	} else if cmd == DiskCmdWrite { // Write
+		buf := make([]byte, 162)
+		for i := 0; i < 81; i++ {
+			idx, _ := cpu.tryteToAddr(tryte.FromInt(AddrDiskBufferStart + i))
+			val := int16(cpu.Memory[idx].ToInt())
+			binary.BigEndian.PutUint16(buf[i*2:i*2+2], uint16(val))
+		}
+		_, err = f.Write(buf)
+		if err != nil {
+			cpu.DiskStatus = tryte.FromInt(-1)
+			return err
+		}
+		cpu.DiskStatus = tryte.FromInt(0)
+	}
+	return nil
 }

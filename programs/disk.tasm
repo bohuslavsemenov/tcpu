@@ -1,0 +1,75 @@
+; --- Ternary Disk Storage Demo ---
+; Writes "HELLO" to sector 1 of virtual disk, clears RAM,
+; reads it back from disk, and prints it to stdout.
+
+LDI 9000, R2        ; R2 = Stdout address
+
+; 1. Write "HELLO" to the DMA RAM buffer (9006 - 9010)
+LDI 9006, R0
+LDI 72, R1          ; 'H'
+ST R1, R0
+LDI 1, R3
+ADD R3, R0          ; address = 9007
+LDI 69, R1          ; 'E'
+ST R1, R0
+ADD R3, R0          ; address = 9008
+LDI 76, R1          ; 'L'
+ST R1, R0
+ADD R3, R0          ; address = 9009
+LDI 76, R1          ; 'L'
+ST R1, R0
+ADD R3, R0          ; address = 9010
+LDI 79, R1          ; 'O'
+ST R1, R0
+
+; 2. Set sector number to 1
+LDI 9004, R0
+LDI 1, R1
+ST R1, R0           ; DiskSector = 1
+
+; 3. Write buffer to disk (Command = -1)
+LDI 9005, R0
+LDI -1, R1
+ST R1, R0           ; DiskCommand = -1 (Write)
+
+; 4. Clear the memory buffer to prove we read it from disk
+LDI 9006, R0
+LDI 0, R1
+ST R1, R0
+LDI 1, R3
+ADD R3, R0
+ST R1, R0
+ADD R3, R0
+ST R1, R0
+ADD R3, R0
+ST R1, R0
+ADD R3, R0
+ST R1, R0
+
+; 5. Read from disk back to buffer (Command = 1)
+LDI 9005, R0
+LDI 1, R1
+ST R1, R0           ; DiskCommand = 1 (Read)
+
+; 6. Print the buffer contents to Stdout to verify
+LDI 9006, R0
+LD R0, R1
+ST R1, R2           ; print R1
+LDI 1, R3
+ADD R3, R0
+LD R0, R1
+ST R1, R2           ; print R1
+ADD R3, R0
+LD R0, R1
+ST R1, R2           ; print R1
+ADD R3, R0
+LD R0, R1
+ST R1, R2           ; print R1
+ADD R3, R0
+LD R0, R1
+ST R1, R2           ; print R1
+
+LDI 10, R1          ; print newline
+ST R1, R2
+
+HALT

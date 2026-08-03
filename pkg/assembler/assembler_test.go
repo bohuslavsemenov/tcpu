@@ -208,3 +208,22 @@ func TestAssemble_RTE(t *testing.T) {
 		t.Errorf("expected instruction 0 to be RTE, got %v", bytecode[0])
 	}
 }
+
+func TestAssemble_SYS(t *testing.T) {
+	source := `
+		SYS
+	`
+	bytecode, err := Assemble(source)
+	if err != nil {
+		t.Fatalf("Assemble failed: %v", err)
+	}
+
+	if len(bytecode) != 1 {
+		t.Fatalf("expected bytecode size 1, got %d", len(bytecode))
+	}
+
+	expectedSys := makeInst(cpu.OpSys, 0, 0)
+	if bytecode[0] != expectedSys {
+		t.Errorf("expected instruction 0 to be SYS, got %v", bytecode[0])
+	}
+}

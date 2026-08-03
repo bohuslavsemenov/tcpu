@@ -143,13 +143,15 @@ func (a *Assembler) assembleLine(pl parsedLine, lineNum int) ([]tryte.Tryte, err
 		}
 		return []tryte.Tryte{a.encode(cpu.OpHalt, 0, 0)}, nil
 
-	case "RET", "RTE":
+	case "RET", "RTE", "SYS":
 		if len(pl.args) != 0 {
 			return nil, fmt.Errorf("line %d: %s expects 0 arguments, got %d", lineNum, pl.mnemonic, len(pl.args))
 		}
 		op := cpu.OpRet
 		if pl.mnemonic == "RTE" {
 			op = cpu.OpRte
+		} else if pl.mnemonic == "SYS" {
+			op = cpu.OpSys
 		}
 		return []tryte.Tryte{a.encode(op, 0, 0)}, nil
 
@@ -256,6 +258,8 @@ func (a *Assembler) opForMnemonic(mnemonic string) int {
 		return cpu.OpRet
 	case "RTE":
 		return cpu.OpRte
+	case "SYS":
+		return cpu.OpSys
 	case "AND":
 		return cpu.OpAnd
 	case "OR":

@@ -480,3 +480,97 @@ func TestCPU_VirtualDisk(t *testing.T) {
 		t.Errorf("expected 123, got %d", val.ToInt())
 	}
 }
+
+func TestCPU_Syscalls(t *testing.T) {
+	cpu := &CPU{}
+	cpu.Reset()
+
+	// Set SIVR (syscall handler vector) to 200
+	err := cpu.WriteMem(tryte.FromInt(AddrSIVR), tryte.FromInt(200))
+	if err != nil {
+		t.Fatalf("failed to set SIVR: %v", err)
+	}
+
+	// Set IVR (hardware timer handler vector) to 100
+	err = cpu.WriteMem(tryte.FromInt(AddrIVR), tryte.FromInt(100))
+	if err != nil {
+		t.Fatalf("failed to set IVR: %v", err)
+	}
+
+	// Address 0: SYS (trigger syscall)
+	_ = cpu.WriteMem(tryte.FromInt(0), MakeInst(OpSys, 0, 0))
+
+	// Address 200: RTE (syscall return)
+	_ = cpu.WriteMem(tryte.FromInt(200), MakeInst(OpRte, 0, 0))
+
+	// Address 100: RTE (hardware interrupt return)
+	_ = cpu.WriteMem(tryte.FromInt(100), MakeInst(OpRte, 0, 0))
+
+	// Set a mock state to verify restoration
+	cpu.Compare = tryte.T
+	cpu.Carry = true
+
+	// Step 1: execute SYS instruction at PC=0
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("SYS execution error: %v", err)
+	}
+
+	if !cpu.SYS_Active {
+		t.Errorf("expected SYS_Active to be true")
+	}
+	if cpu.PC.ToInt() != 200 {
+		t.Errorf("expected PC to jump to SIVR 200, got %d", cpu.PC.ToInt())
+	}
+	if cpu.SYS_PC.ToInt() != 1 { // PC gets incremented during step before jump
+		t.Errorf("expected SYS_PC to save PC=1, got %d", cpu.SYS_PC.ToInt())
+	}
+
+	// Now we are inside Syscall handler. Trigger a nested hardware timer interrupt!
+	cpu.TriggerInterrupt()
+
+	if !cpu.IntActive {
+		t.Errorf("expected IntActive to be true")
+	}
+	if cpu.PC.ToInt() != 100 {
+		t.Errorf("expected PC to jump to IVR 100, got %d", cpu.PC.ToInt())
+	}
+	if cpu.SPC.ToInt() != 200 {
+		t.Errorf("expected SPC to save PC=200, got %d", cpu.SPC.ToInt())
+	}
+
+	// Step 2: execute RTE at PC=100 (returns from hardware interrupt back to syscall handler)
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("RTE execution error: %v", err)
+	}
+
+	if cpu.PC.ToInt() != 200 {
+		t.Errorf("expected PC to return to 200, got %d", cpu.PC.ToInt())
+	}
+	if cpu.IntActive {
+		t.Errorf("expected IntActive to be false")
+	}
+	if !cpu.SYS_Active {
+		t.Errorf("expected SYS_Active to remain true")
+	}
+
+	// Step 3: execute RTE at PC=200 (returns from system call back to user code)
+	_, err = cpu.Step()
+	if err != nil {
+		t.Fatalf("RTE execution error: %v", err)
+	}
+
+	if cpu.PC.ToInt() != 1 {
+		t.Errorf("expected PC to return to 1, got %d", cpu.PC.ToInt())
+	}
+	if cpu.SYS_Active {
+		t.Errorf("expected SYS_Active to reset to false")
+	}
+	if cpu.Compare != tryte.T {
+		t.Errorf("expected Compare to restore to T")
+	}
+	if !cpu.Carry {
+		t.Errorf("expected Carry to restore to true")
+	}
+}

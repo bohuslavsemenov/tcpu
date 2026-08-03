@@ -35,23 +35,29 @@ const (
 	OpDiv  = 11
 	OpMod  = -11
 	OpRte  = 12
+	OpSys  = -12
 )
 
 type CPU struct {
-	R         [9]tryte.Tryte
-	PC        tryte.Tryte
-	Compare   tryte.Trit
-	Carry     bool
-	ALU       ALU
-	Memory     [MemorySize]tryte.Tryte
-	SPC        tryte.Tryte
-	SCompare   tryte.Trit
-	SCarry     bool
-	IVR        tryte.Tryte
-	IntActive  bool
-	DiskPath   string
-	DiskSector tryte.Tryte
-	DiskStatus tryte.Tryte
+	R           [9]tryte.Tryte
+	PC          tryte.Tryte
+	Compare     tryte.Trit
+	Carry       bool
+	ALU         ALU
+	Memory      [MemorySize]tryte.Tryte
+	SPC         tryte.Tryte
+	SCompare    tryte.Trit
+	SCarry      bool
+	IVR         tryte.Tryte
+	IntActive   bool
+	DiskPath    string
+	DiskSector  tryte.Tryte
+	DiskStatus  tryte.Tryte
+	SIVR        tryte.Tryte
+	SYS_PC      tryte.Tryte
+	SYS_Compare tryte.Trit
+	SYS_Carry   bool
+	SYS_Active  bool
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -69,6 +75,7 @@ const (
 	AddrDiskCommand     = 9005
 	AddrDiskBufferStart = 9006
 	AddrDiskBufferEnd   = 9086
+	AddrSIVR            = 9007
 )
 
 // Reset resets the CPU registers to their default state.
@@ -86,6 +93,11 @@ func (cpu *CPU) Reset() {
 	cpu.IntActive = false
 	cpu.DiskSector = tryte.FromInt(0)
 	cpu.DiskStatus = tryte.FromInt(0)
+	cpu.SIVR = tryte.FromInt(0)
+	cpu.SYS_PC = tryte.FromInt(0)
+	cpu.SYS_Compare = tryte.O
+	cpu.SYS_Carry = false
+	cpu.SYS_Active = false
 }
 
 // Map a balanced ternary Tryte address (from -9841 to 9841) to 0..19682
@@ -115,6 +127,10 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 
 	if addrVal == AddrIVR {
 		return cpu.IVR, nil
+	}
+
+	if addrVal == AddrSIVR {
+		return cpu.SIVR, nil
 	}
 
 	if addrVal == AddrDiskSector {
@@ -166,6 +182,11 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 
 	if addrVal == AddrIVR {
 		cpu.IVR = val
+		return nil
+	}
+
+	if addrVal == AddrSIVR {
+		cpu.SIVR = val
 		return nil
 	}
 
@@ -376,11 +397,27 @@ func (cpu *CPU) Step() (bool, error) {
 		}
 		cpu.R[dstIdx] = res
 
-	case OpRte: // RTE: return from exception
-		cpu.PC = cpu.SPC
-		cpu.Compare = cpu.SCompare
-		cpu.Carry = cpu.SCarry
-		cpu.IntActive = false
+	case OpRte: // RTE: return from exception or system call
+		if cpu.IntActive {
+			cpu.PC = cpu.SPC
+			cpu.Compare = cpu.SCompare
+			cpu.Carry = cpu.SCarry
+			cpu.IntActive = false
+		} else if cpu.SYS_Active {
+			cpu.PC = cpu.SYS_PC
+			cpu.Compare = cpu.SYS_Compare
+			cpu.Carry = cpu.SYS_Carry
+			cpu.SYS_Active = false
+		}
+
+	case OpSys: // SYS: software interrupt / system call
+		if cpu.SIVR.ToInt() != 0 && !cpu.SYS_Active {
+			cpu.SYS_Active = true
+			cpu.SYS_PC = cpu.PC
+			cpu.SYS_Compare = cpu.Compare
+			cpu.SYS_Carry = cpu.Carry
+			cpu.PC = cpu.SIVR
+		}
 
 	default:
 		return false, fmt.Errorf("unknown opcode: %d", op)

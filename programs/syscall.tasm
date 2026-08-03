@@ -1,0 +1,41 @@
+; --- Ternary System Call Demo ---
+; Sets up a System Call Handler to print characters in user space.
+; Stdout address = 9000, SIVR address = 9007
+
+LDI 9007, R2
+LDI SYSCALL_HANDLER, R1
+ST R1, R2           ; set SIVR = SYSCALL_HANDLER
+
+LDI 9000, R2        ; R2 = Stdout Address (used by handler)
+
+; User Code
+LDI 1, R0           ; Syscall service 1: print char
+LDI 72, R1          ; 'H'
+SYS
+LDI 69, R1          ; 'E'
+SYS
+LDI 76, R1          ; 'L'
+SYS
+LDI 76, R1          ; 'L'
+SYS
+LDI 79, R1          ; 'O'
+SYS
+LDI 10, R1          ; '\n'
+SYS
+HALT
+
+; =====================================================================
+; KERNEL SYSTEM CALL HANDLER (Vector set via SIVR)
+; =====================================================================
+SYSCALL_HANDLER:
+; Check if R0 == 1 (Service: Print Char)
+LDI 1, R8
+CMP R0, R8
+LDI DONE_SYS, R8
+JNE R8              ; if not service 1, return
+
+; Print character in R1 to stdout
+ST R1, R2
+
+DONE_SYS:
+RTE

@@ -81,11 +81,11 @@ const (
 	AddrDiskCommand     = 9005
 	AddrDiskBufferStart = 9006
 	AddrDiskBufferEnd   = 9086
-	AddrSIVR            = 9007
-	AddrBase            = 9008
-	AddrSPC             = 9009
-	AddrSysPC           = 9010
-	AddrIntStatus       = 9011
+	AddrSIVR            = 9087
+	AddrBase            = 9088
+	AddrSPC             = 9089
+	AddrSysPC           = 9090
+	AddrIntStatus       = 9091
 )
 
 // Reset resets the CPU registers to their default state.
@@ -132,8 +132,13 @@ func (cpu *CPU) tryteToAddr(t tryte.Tryte) (int, error) {
 	return addr, nil
 }
 
+// ReadMem reads a Tryte from memory at the given Tryte address.
 func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 	addrVal := addr.ToInt()
+	if addrVal == AddrStdout {
+		return tryte.FromInt(0), nil
+	}
+
 	if addrVal == AddrStdin {
 		if cpu.LastKey != 0 {
 			val := tryte.FromInt(int(cpu.LastKey))
@@ -158,13 +163,33 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 		var buf [1]byte
 		n, err := reader.Read(buf[:])
 		if err != nil || n == 0 {
-			return tryte.Tryte{}, fmt.Errorf("failed to read from stdin: %w", err)
+			return tryte.FromInt(0), nil
 		}
 		return tryte.FromInt(int(buf[0])), nil
 	}
 
+	if addrVal == AddrVideoRefresh {
+		return tryte.FromInt(0), nil
+	}
+
 	if addrVal == AddrIVR {
 		return cpu.IVR, nil
+	}
+
+	if addrVal == AddrDiskSector {
+		return cpu.DiskSector, nil
+	}
+
+	if addrVal == AddrDiskCommand {
+		return cpu.DiskStatus, nil
+	}
+
+	if addrVal >= AddrDiskBufferStart && addrVal <= AddrDiskBufferEnd {
+		idx, err := cpu.tryteToAddr(addr)
+		if err != nil {
+			return tryte.Tryte{}, err
+		}
+		return cpu.Memory[idx], nil
 	}
 
 	if addrVal == AddrSIVR {
@@ -187,14 +212,6 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 		return cpu.IntStatus, nil
 	}
 
-	if addrVal == AddrDiskSector {
-		return cpu.DiskSector, nil
-	}
-
-	if addrVal == AddrDiskCommand {
-		return cpu.DiskStatus, nil
-	}
-
 	// Apply base relocation for user space addresses
 	if addrVal < AddrVRAMStart && !cpu.IntActive && !cpu.SYS_Active {
 		relVal := addrVal + cpu.Base.ToInt()
@@ -213,7 +230,7 @@ func (cpu *CPU) ReadMem(addr tryte.Tryte) (tryte.Tryte, error) {
 }
 
 // WriteMem writes a Tryte to memory at the given Tryte address.
-func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
+func (cpu *CPU) WriteMem(addr, val tryte.Tryte) error {
 	addrVal := addr.ToInt()
 	if addrVal == AddrStdout {
 		writer := cpu.Stdout
@@ -255,6 +272,9 @@ func (cpu *CPU) WriteMem(addr tryte.Tryte, val tryte.Tryte) error {
 	}
 
 	if addrVal == AddrBase {
+		if val.ToInt() != 0 {
+			fmt.Printf("[BASE WRITTEN BY PC %d! val=%d, R0=%d, R1=%d, R2=%d, R3=%d, R4=%d, R5=%d, R6=%d, R7=%d, R8=%d]\n", cpu.PC.ToInt(), val.ToInt(), cpu.R[0].ToInt(), cpu.R[1].ToInt(), cpu.R[2].ToInt(), cpu.R[3].ToInt(), cpu.R[4].ToInt(), cpu.R[5].ToInt(), cpu.R[6].ToInt(), cpu.R[7].ToInt(), cpu.R[8].ToInt())
+		}
 		cpu.Base = val
 		return nil
 	}
@@ -431,6 +451,9 @@ func (cpu *CPU) Step() (bool, error) {
 		cpu.R[dstIdx] = val
 
 	case OpSt: // ST: store value in R[dst] to address stored in R[src]
+		if cpu.R[srcIdx].ToInt() == AddrBase {
+			fmt.Printf("[ST INSTRUCTION AT PC %d WRITING TO ADDRBASE (9088)! srcIdx=%d, dstIdx=%d, R[src]=%d, R[dst]=%d]\n", cpu.PC.ToInt(), srcIdx, dstIdx, cpu.R[srcIdx].ToInt(), cpu.R[dstIdx].ToInt())
+		}
 		err := cpu.WriteMem(cpu.R[srcIdx], cpu.R[dstIdx])
 		if err != nil {
 			return false, fmt.Errorf("store memory error: %w", err)

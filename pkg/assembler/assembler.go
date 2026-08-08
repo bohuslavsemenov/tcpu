@@ -30,6 +30,10 @@ func NewAssembler() *Assembler {
 	}
 }
 
+func (a *Assembler) Labels() map[string]int {
+	return a.labels
+}
+
 // Assemble translates assembly source code into a slice of Trytes.
 func Assemble(source string) ([]tryte.Tryte, error) {
 	a := NewAssembler()
